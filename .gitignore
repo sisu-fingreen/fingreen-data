@@ -52,3 +52,5 @@ rsconnect/
 # Graphs and results folders
 graphs/
 results/
+source-data/
+
