@@ -157,7 +157,8 @@ convert_eur_value_between_years <- function(x, from, to){
 convert_data_from_euklem_to_fingreen_industry <- function(df, mapping, id_vars, vars_to_transform){
   
   catn(
-    "Warning. This function will mess with the totals over industry categories, since the mapping is many-to-many. ",
+    "Warning. Converting data from EUKLEM to fingreen industry categorization will",
+    "mess with the totals over industry categories, since the mapping is many-to-many. ",
     "Also, disaggregated categories inherit total values from their parent categories. Use only with intention."
   )
   
