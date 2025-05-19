@@ -34,13 +34,70 @@ io_table <- readxl::read_xlsx(
 
 io_df_info <- search_eurostat("naio_10_cp1750", column = "code")
 
+# When the function asks if you want to stop downloading, input n for no in the r console
 io_df <- get_eurostat(
   io_df_info$code[1],
   time_format = "num",
   filters = list(
     geo = "FI",
-    time = c(2010L:2022L)
+    time = c(2010L:2022L),
+    unit = "MIO_EUR"
   )
 )
 
-io_df %>% select(ind_ava) %>% distinct() %>% writexl::write_xlsx("source-data/mappings/eurostat-to-fingreen-industry-map.xlsx")
+# io_df %>% select(ind_ava) %>% distinct() %>% writexl::write_xlsx("source-data/mappings/eurostat-to-fingreen-industry-map.xlsx")
+# io_df %>% select(ind_use) %>% distinct() %>%
+#   left_join(eurostat_to_fingreen_industry_map, by = c("ind_use" = "eurostat_industry_code")) %>% writexl::write_xlsx("source-data/mappings/eurostat-to-fingreen-industry-map2.xlsx")
+
+eurostat_to_fingreen_industry_ava_map <- readxl::read_xlsx("source-data/mappings/eurostat-to-fingreen-industry-map.xlsx", sheet = "ava")
+eurostat_to_fingreen_industry_use_map <- readxl::read_xlsx("source-data/mappings/eurostat-to-fingreen-industry-map.xlsx", sheet = "use")
+
+# Transform the ind_ava
+io_transform_ava <- io_df %>%
+  inner_join(
+    filter(eurostat_to_fingreen_industry_ava_map),
+    by = c("ind_ava" = "eurostat_industry_code"),
+    relationship = "many-to-many"
+  ) %>% 
+  mutate(
+    fingreen_industry_code_ava = coalesce(fingreen_industry_code, ind_ava),
+    industry_code_type_ava = industry_code_type
+  ) %>% 
+  group_by(geo, time, industry_code_type_ava, fingreen_industry_code_ava, ind_use, stk_flow) %>% 
+  summarise(
+    values = sum(values * coalesce(disaggregation_coefficient, 1), na.rm = T),
+    .groups = "drop"
+  )
+
+# Transform the ind_use
+io_transform_use <- io_transform_ava %>% 
+  inner_join(
+    filter(eurostat_to_fingreen_industry_use_map),
+    by = c("ind_use" = "eurostat_industry_code"),
+    relationship = "many-to-many"
+  ) %>% 
+  mutate(
+    fingreen_industry_code_use = coalesce(fingreen_industry_code, ind_use),
+    industry_code_type_use = industry_code_type
+  ) %>% 
+  group_by(geo, time, industry_code_type_ava, fingreen_industry_code_ava, industry_code_type_use, fingreen_industry_code_use, stk_flow) %>% 
+  summarise(
+    values = sum(values * coalesce(disaggregation_coefficient, 1), na.rm = T),
+    .groups = "drop"
+  )
+
+# A validation data frame
+# check_df <- io_transform_use %>%
+#   filter(industry_code_type_use == "nace-rev-2") %>% 
+#   group_by(geo, time, fingreen_industry_code_ava, stk_flow) %>%
+#   summarise(values = sum(values, na.rm = T), .groups = "drop") %>%
+#   inner_join(eurostat_to_fingreen_industry_map, by = c("fingreen_industry_code_ava" = "fingreen_industry_code")) %>%
+#   left_join(
+#     filter(io_df, ind_use == "TOTAL"),
+#     by = c("geo", "time", "stk_flow", "eurostat_industry_code" = "ind_ava")
+#   ) %>%
+#   mutate(difference = values.x - values.y)
+# 
+# c29_2018_imp_orig <- filter(io_df, ind_ava == "C29" & time == 2018L & stk_flow == "IMP")
+# c29_2018_imp_ava <- filter(io_transform_ava, fingreen_industry_code_ava == "C29" & time == 2018L & stk_flow == "IMP")
+# c29_2018_imp_use <- filter(io_transform_use, fingreen_industry_code_ava == "C29" & time == 2018L & stk_flow == "IMP")
