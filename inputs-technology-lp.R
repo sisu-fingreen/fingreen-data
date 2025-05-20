@@ -98,7 +98,7 @@ gross_output_long <- gross_output %>%
   ) %>% 
   mutate(gross_output_eur = 1e6 * gross_output_meur) %>% 
   select(nace_r2_code, year, gross_output_eur) %>%
-  convert_data_from_euklem_to_fingreen_industry(
+  convert_data_from_euklems_to_fingreen_industry(
     mapping = euklems_industries_to_fingreen_industries_map,
     id_vars = "year",
     vars_to_transform = "gross_output_eur"
@@ -119,7 +119,7 @@ hours_worked_long <- hours_worked %>%
   ) %>% 
   mutate(hours_worked = 1e3 * thousands_of_hours_worked) %>% 
   select(nace_r2_code, year, hours_worked) %>% 
-  convert_data_from_euklem_to_fingreen_industry(
+  convert_data_from_euklems_to_fingreen_industry(
     mapping = euklems_industries_to_fingreen_industries_map,
     id_vars = "year",
     vars_to_transform = "hours_worked"
@@ -154,7 +154,7 @@ gfcf_long <- gfcf %>%
     names_transform = as.integer
   ) %>% 
   select(nace_r2_code, year, gfcf_meur) %>%
-  convert_data_from_euklem_to_fingreen_industry(
+  convert_data_from_euklems_to_fingreen_industry(
     mapping = euklems_industries_to_fingreen_industries_map,
     id_vars = "year",
     vars_to_transform = "gfcf_meur"
@@ -170,7 +170,7 @@ capital_stock_long <- capital_stock %>%
   select(nace_r2_code, year, net_capital_stock_meur) %>% 
   # Capital stock in T is missing, we impute 0 as the investment is also 0
   mutate(net_capital_stock_meur = if_else(nace_r2_code == "T", 0, net_capital_stock_meur)) %>% 
-  convert_data_from_euklem_to_fingreen_industry(
+  convert_data_from_euklems_to_fingreen_industry(
     mapping = euklems_industries_to_fingreen_industries_map,
     id_vars = "year",
     vars_to_transform = "net_capital_stock_meur"

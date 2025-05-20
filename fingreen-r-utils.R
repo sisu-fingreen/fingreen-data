@@ -154,7 +154,7 @@ convert_eur_value_between_years <- function(x, from, to){
   return(res)
 }
 
-convert_data_from_euklem_to_fingreen_industry <- function(df, mapping, id_vars, vars_to_transform){
+convert_data_from_euklems_to_fingreen_industry <- function(df, mapping, id_vars, vars_to_transform){
   
   catn(
     "Warning. Converting data from EUKLEM to fingreen industry categorization will",
