@@ -132,6 +132,8 @@ labour_productivity <- gross_output_long %>%
   mutate(
     labour_productivity_output_eur_per_hour = gross_output_eur / hours_worked,
     d_labour_productivity_output_eur_per_hour = labour_productivity_output_eur_per_hour -
+      lag(labour_productivity_output_eur_per_hour),
+    g_labour_productivity = d_labour_productivity_output_eur_per_hour /
       lag(labour_productivity_output_eur_per_hour)
   ) %>% 
   ungroup()
@@ -143,6 +145,11 @@ labour_productivity %>%
 
 labour_productivity %>% 
   ggplot(aes(year, d_labour_productivity_output_eur_per_hour)) +
+  geom_line() +
+  facet_wrap(~fingreen_industry_code)
+
+labour_productivity %>% 
+  ggplot(aes(year, g_labour_productivity)) +
   geom_line() +
   facet_wrap(~fingreen_industry_code)
 
@@ -189,18 +196,18 @@ shares_of_new_capital <- capital_stock_long %>%
   filter(share_of_new_capital > 0.001)
 
 pos_labour_productivity_changes <- labour_productivity %>% 
-  filter(d_labour_productivity_output_eur_per_hour > 0) %>% 
+  filter(g_labour_productivity > 0) %>% 
   left_join(shares_of_new_capital, by = c("fingreen_industry_code", "year")) %>% 
   mutate(
-    psi_lambda = d_labour_productivity_output_eur_per_hour / share_of_new_capital
+    psi_lambda = g_labour_productivity / share_of_new_capital
   ) %>% 
   filter(year >= 1996L & !is.na(psi_lambda))
 
 neg_labour_productivity_changes <- labour_productivity %>% 
-  filter(d_labour_productivity_output_eur_per_hour < 0) %>% 
+  filter(g_labour_productivity < 0) %>% 
   left_join(shares_of_new_capital, by = c("fingreen_industry_code", "year")) %>% 
   mutate(
-    psi_lambda = d_labour_productivity_output_eur_per_hour / share_of_new_capital
+    psi_lambda = g_labour_productivity / share_of_new_capital
   ) %>% 
   filter(year >= 1996L & !is.na(psi_lambda))
 
@@ -222,8 +229,7 @@ eur_variables <- c(
   "labour_productivity_output_eur_per_hour",
   "d_labour_productivity_output_eur_per_hour",
   "net_capital_stock_meur",
-  "gfcf_meur",
-  "psi_lambda"
+  "gfcf_meur"
 )
 
 pos_labour_productivity_changes_2010eur <- pos_labour_productivity_changes %>% 
@@ -243,12 +249,14 @@ lp_pos_norm_klems <- pos_labour_productivity_changes_2010eur %>%
   ) %>%
   data.table::transpose(keep.names = "measure")
 
-lp_pos <- pos_labour_productivity_changes_2010eur %>% 
+lp_neg_norm_klems <- neg_labour_productivity_changes_2010eur %>% 
   group_by(fingreen_industry_code) %>% 
   summarise(
-    mean = mean(d_labour_productivity_output_eur_per_hour),
-    median = median(d_labour_productivity_output_eur_per_hour),
-    sd = sd(d_labour_productivity_output_eur_per_hour)
+    mean = mean(psi_lambda),
+    median = median(psi_lambda),
+    sd = sd(psi_lambda)
   ) %>%
   data.table::transpose(keep.names = "measure")
 
+writexl::write_xlsx(lp_pos_norm_klems, "results/inputs-technology/labour-productivity/lp_pos_norm_klems.xlsx")
+writexl::write_xlsx(lp_neg_norm_klems, "results/inputs-technology/labour-productivity/lp_neg_norm_klems.xlsx")
