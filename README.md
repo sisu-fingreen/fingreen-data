@@ -7,7 +7,7 @@ The repo should be self-contained - meaning everything needed to run any data cr
 
 ## Naming conventions
 
-Use only lowcase and `-` as a delimiter in all file names.
+Use only lowcase and `-` as a delimiter in all file names. Exception are source data files, that may be named similarly as in the source.
 
 Source data files: use the `source-data` subfolder and then the corresponding FINGREEN excel file and excel sheet as subfolder names for any source data needed by your scripts. Example: `source-data/inputs-economy/beta-elasticities/beta-elasticities-italy.csv`.
 
@@ -17,4 +17,8 @@ Graphs: use the `graphs` subfolder and then the corresponding FINGREEN excel fil
 
 Result files like `.xlsx`: use the `results` subfolder and again the excel file and sheet as subfolder names for results producted by your scripts. Example: `results/inputs-economy/beta-elasticities/my-results.xlsx`
 
-Both graphs and results are excluded from the repo in the .gitignore for now.
+Queries into eg. StatFin database: use the `queries` subfolder and the same folder and file name structure as specified for graphs and results.
+
+Source data: use the `source-data` subfolder and either a subfolder structure as specified above, or a subfolder (eg. `euklems`) according to the data source. The latter especially for data that may be used in calculations of multiple input sheet data.
+
+Both graphs and results are excluded from the repo in the .gitignore for now. Source data files are also excluded by default, add manually with `git add` if tracking is needed.
