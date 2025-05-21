@@ -79,7 +79,7 @@ gfcf <- readxl::read_xlsx(euklems_fi_capital_accounts_filepath, sheet = "Iq_GFCF
 capital_stock <- readxl::read_xlsx(euklems_fi_capital_accounts_filepath, "Kq_GFCF")
 
 euklems_industries_to_fingreen_industries_map <- readxl::read_xlsx(
-  "source-data/euklems/euklems-industries-to-fingreen-industries-map.xlsx",
+  "source-data/mappings/euklems-industries-to-fingreen-industries-map.xlsx",
   sheet = "mapping"
 )
 
