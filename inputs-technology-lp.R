@@ -249,6 +249,8 @@ lp_pos_norm_klems <- pos_labour_productivity_changes_2010eur %>%
   ) %>%
   data.table::transpose(keep.names = "measure")
 
+
+
 lp_neg_norm_klems <- neg_labour_productivity_changes_2010eur %>% 
   group_by(fingreen_industry_code) %>% 
   summarise(
@@ -258,5 +260,5 @@ lp_neg_norm_klems <- neg_labour_productivity_changes_2010eur %>%
   ) %>%
   data.table::transpose(keep.names = "measure")
 
-writexl::write_xlsx(lp_pos_norm_klems, "results/inputs-technology/labour-productivity/lp_pos_norm_klems.xlsx")
-writexl::write_xlsx(lp_neg_norm_klems, "results/inputs-technology/labour-productivity/lp_neg_norm_klems.xlsx")
+writexl::write_xlsx(lp_pos_norm_klems, "results/inputs-technology/labour-productivity/lp_pos_norm_klems.xlsx", col_names = F)
+writexl::write_xlsx(lp_neg_norm_klems, "results/inputs-technology/labour-productivity/lp_neg_norm_klems.xlsx", col_names = F)
