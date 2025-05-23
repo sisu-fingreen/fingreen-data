@@ -105,6 +105,18 @@ io_transform_use <- io_transform_ava %>%
 # c29_2018_imp_use <- filter(io_transform_use, fingreen_industry_code_ava == "C29" & time == 2018L & stk_flow == "IMP")
 
 
+# add total growth --------------------------------------------------------
+
+io_growth <- filter(io_transform_use, stk_flow == "TOTAL") %>% 
+  group_by(geo, industry_code_type_ava, fingreen_industry_code_ava, industry_code_type_use, fingreen_industry_code_use) %>% 
+  arrange(time) %>% 
+  mutate(relative_growth = (values - lag(values)) / lag(values)) %>%
+  ungroup() %>% 
+  arrange(geo, time, desc(industry_code_type_ava), fingreen_industry_code_ava, desc(industry_code_type_use), fingreen_industry_code_use) %>% 
+  select(-industry_code_type_use, -values) %>%
+  tidyr::pivot_wider(names_from = fingreen_industry_code_use, values_from = relative_growth) %>% 
+  filter(time > min(time))
+
 # results -----------------------------------------------------------------
 
 prepare_io_results <- function(df, stock_or_flow) {
@@ -119,5 +131,6 @@ res_list <- lapply(c("TOTAL", "DOM", "IMP"), FUN = prepare_io_results, df = io_t
 
 names(res_list) <- c("total", "domestic", "imports")
 
-writexl::write_xlsx(res_list, path = "results/inputs-economy/inputoutput/io-annual-fi-2010-2022.xlsx")
+res_list[["total_growth"]] <- io_growth
 
+writexl::write_xlsx(res_list, path = "results/inputs-economy/inputoutput/io-annual-fi-2010-2022.xlsx")
