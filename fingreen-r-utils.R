@@ -129,88 +129,53 @@ fingreen_coicop_to_description <- function(codes){
 
 convert_eur_value_between_years <- function(x, from, to){
   stopifnot(is_installed("pxweb"))
-  stopifnot(length(from) == 1L)
-  stopifnot(length(to) == 1L)
   stopifnot(is.numeric(x))
   stopifnot(is.numeric(from))
   stopifnot(is.numeric(to))
   
-  # Statfin has a handy api for money (eur) value conversion between years
-  money_value_factor_query <- pxweb::pxweb_query(
-    list(Vuosi = as.character(c(from, to)), Tiedot = "pisteluku")
-  )
+  # If no need to convert, just return the original value and avoid api calls
+  if(all(from == to)){
+    return(x)
+  }
   
-  money_value_factor <- pxweb::pxweb_get(
-    url = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/khi/statfin_khi_pxt_11xy.px",
-    query = money_value_factor_query
-  ) %>% as.data.frame() %>% 
-    fix_names() %>% 
-    arrange(vuosi) %>% 
-    summarise(conversion_factor = first(pisteluku) / last(pisteluku)) %>% 
-    pull(conversion_factor)
+  year_pairs_list <- tibble(from, to) %>% distinct() %>% filter(from != to) %>% asplit(1)
   
-  res <- x * money_value_factor
+  get_conversion_factor_for_year_pair <- function(year_pair) {
+    
+    # Statfin has a handy api for money (eur) value conversion between years
+    conversion_factor_query <- pxweb::pxweb_query(
+      list(Vuosi = as.character(year_pair), Tiedot = "pisteluku")
+    )
+    
+    conversion_factor <- pxweb::pxweb_get(
+      url = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/khi/statfin_khi_pxt_11xy.px",
+      query = conversion_factor_query
+    ) %>% as.data.frame() %>% 
+      fix_names() %>% 
+      arrange(vuosi) %>% 
+      summarise(conversion_factor = first(pisteluku) / last(pisteluku)) %>% 
+      pull(conversion_factor)
+    
+    return(conversion_factor)
+  }
   
-  return(res)
+  conversion_factors <- lapply(year_pairs_list, get_conversion_factor_for_year_pair) %>% unlist()
+  
+  conversion_df <- bind_rows(year_pairs_list) %>% cbind(conversion_factors)
+  
+  res_df <- tibble(x, from, to) %>% 
+    left_join(conversion_df, by = c("from", "to")) %>% 
+    mutate(
+      res = case_when(
+        from == to ~ x,
+        from != to ~ x * conversion_factors
+      )
+    )
+  
+  return(res_df$res)
 }
 
 convert_data_from_euklems_to_fingreen_industry <- function(df, mapping, id_vars, vars_to_transform){
-  
-  catn(
-    "Warning. Converting data from EUKLEM to fingreen industry categorization will",
-    "mess with the totals over industry categories, since the mapping is many-to-many. ",
-    "Also, disaggregated categories inherit total values from their parent categories. Use only with intention."
-  )
-  
-  stopifnot(
-    identical(colnames(mapping), c("nace_r2_code", "fingreen_industry_code", "relationship", "recomposition_method"))
-  )
-  stopifnot("nace_r2_code" %in% colnames(df))
-  stopifnot(!"relationship" %in% colnames(df))
-  
-  df <- df %>% 
-    inner_join(mapping, by = "nace_r2_code", relationship = "many-to-many")
-  
-  # Conversion logic in pieces, according to the relationship between the categories
-  
-  # One-to-one is simple, no need to do anything
-  df_one_to_one <- filter(df, relationship == "one-to-one") %>% 
-    select(all_of(c("fingreen_industry_code", id_vars, vars_to_transform)))
-  
-  # Disaggregation is also simple, the new child categories already got the value of the parent category
-  # in the join
-  df_disaggregated <- filter(
-    df,
-    relationship == "disaggregation" |
-      (relationship == "recomposition" & recomposition_method == "disaggregation")
-  ) %>% 
-    select(all_of(c("fingreen_industry_code", id_vars, vars_to_transform)))
-  
-  # Aggregation is straightforward, just sum the child categories under the new parent
-  df_aggregated <- filter(
-    df,
-    relationship == "aggregation" |
-      (relationship == "recomposition" & recomposition_method == "aggregation")
-  ) %>% 
-    group_by(across(all_of(c("fingreen_industry_code", id_vars)))) %>% 
-    summarise(across(all_of(vars_to_transform), .fns = sum), .groups = "drop")
-  
-  # One last thing is averaging, for categories which are partially overlapping
-  
-  df_averaged <- filter(df, relationship == "recomposition" & recomposition_method == "average") %>% 
-    group_by(across(all_of(c("fingreen_industry_code", id_vars)))) %>% 
-    summarise(across(all_of(vars_to_transform), .fns = mean), .groups = "drop")
-  
-  res <- bind_rows(
-    df_one_to_one,
-    df_disaggregated,
-    df_aggregated,
-    df_averaged
-  )
-  return(res)
-}
-
-convert_data_from_eurogreen_to_fingreen_industry <- function(df, mapping, id_vars, vars_to_transform){
   
   catn(
     "Warning. Converting data from EUKLEM to fingreen industry categorization will",
