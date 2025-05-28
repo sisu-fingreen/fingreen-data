@@ -129,7 +129,7 @@ sheet_info <- tibble(
     "Total io data, domestic + imports (STK_FLOW = 'TOTAL')",
     "Domestic io data (STK_FLOW = 'DOM')",
     "Imports io data (STK_FLOW = 'IMP')",
-    "Relative total growth (x_[t] - x_[t-1] / x_[t-1]) from previous year (not inflation adjusted)"
+    "Relative total growth (x_[t] - x_[t-1] / x_[t-1]) from previous year, inflation adjusted"
   )
 )
 
