@@ -25,24 +25,33 @@ create_dir_if_not_exists(results_dir, "results")
 
 # source data -------------------------------------------------------------
 
-data_years <- 2000L:2022L
-
-io_df_info <- search_eurostat("naio_10_cp1750", column = "code")
+data_years <- 2010L:2022L
 
 # When the function asks if you want to stop downloading, input n for no in the r console
 io_df <- get_eurostat(
-  io_df_info$code[1],
+  "naio_10_cp1750",
   time_format = "num",
   filters = list(
     geo = "FI",
-    time = c(2010L:2022L),
+    time = data_years,
     unit = "MIO_EUR",
     stk_flow = "TOTAL"
   )
 )
 
-eurostat_to_fingreen_industry_ava_map <- readxl::read_xlsx("source-data/mappings/eurostat-to-fingreen-industry-map.xlsx", sheet = "ava")
-eurostat_to_fingreen_industry_use_map <- readxl::read_xlsx("source-data/mappings/eurostat-to-fingreen-industry-map.xlsx", sheet = "use")
+eurostat_to_fingreen_industry_ava_map <- readxl::read_xlsx(
+  "source-data/mappings/eurostat-io-industry-to-fingreen-industry-map.xlsx",
+  sheet = "ava"
+)
+eurostat_to_fingreen_industry_use_map <- readxl::read_xlsx(
+  "source-data/mappings/eurostat-io-industry-to-fingreen-industry-map.xlsx",
+  sheet = "use"
+)
+# The codes in the eurostat nama tables are a bit different from the ones in the io tables
+eurostat_to_fingreen_industry_nama_map <- readxl::read_xlsx(
+  "source-data/mappings/eurostat-nama-industry-to-fingreen-industry-map.xlsx",
+  sheet = "nama"
+)
 
 gfcf_eurostat <- get_eurostat(
   "nama_10_a64_p5",
@@ -50,17 +59,24 @@ gfcf_eurostat <- get_eurostat(
   filters = list(
     geo = "FI",
     unit = "CLV20_MEUR",
-    na_item = "P51G",
-    time = 2000L:2022L
+    na_item = "P51G", # P51G 	Gross fixed capital formation, https://fgeerolf.com/data/eurostat/nama_10_a64_p5.html
+    asset10 = "N11G", # N11G Total fixed assets (gross)
+    time = data_years - 1L
   )
-) %>% 
-  tidyr::pivot_wider(names_from = "time", values_from = "values")
+)
 
-capital_stock_eurostat <- get_eurostat("nama_10_nfa_st", time_format = "num", filters = list(geo = "FI", unit = "CLV20_MEUR", asset10 = "N11N")) %>%
-  filter(time >= 1995L) %>% 
-  tidyr::pivot_wider(names_from = "time", values_from = "values")
+capital_stock_eurostat <- get_eurostat(
+  "nama_10_nfa_st",
+  time_format = "num",
+  filters = list(
+    geo = "FI",
+    unit = "CLV20_MEUR",
+    asset10 = "N11N", # N11N Total fixed assets (net)
+    time = data_years
+  )
+)
 
-
+  
 # data transformations ----------------------------------------------------
 
 # Transform the ind_ava
@@ -74,7 +90,7 @@ io_transform_ava <- io_df %>%
     fingreen_industry_code_ava = coalesce(fingreen_industry_code, ind_ava),
     industry_code_type_ava = industry_code_type
   ) %>% 
-  group_by(geo, time, industry_code_type_ava, fingreen_industry_code_ava, ind_use, stk_flow) %>% 
+  group_by(geo, time, fingreen_industry_code_ava, ind_use) %>% 
   summarise(
     values = sum(values * coalesce(disaggregation_coefficient, 1), na.rm = T),
     .groups = "drop"
@@ -91,21 +107,86 @@ io_transform_use <- io_transform_ava %>%
     fingreen_industry_code_use = coalesce(fingreen_industry_code, ind_use),
     industry_code_type_use = industry_code_type
   ) %>% 
-  group_by(geo, time, industry_code_type_ava, fingreen_industry_code_ava, industry_code_type_use, fingreen_industry_code_use, stk_flow) %>% 
+  group_by(geo, time, fingreen_industry_code_ava, fingreen_industry_code_use) %>% 
   summarise(
     values = sum(values * coalesce(disaggregation_coefficient, 1), na.rm = T),
     .groups = "drop"
   )
 
+gfcf_transform <- gfcf_eurostat %>% 
+  inner_join(
+    filter(eurostat_to_fingreen_industry_nama_map, relationship != "extra"),
+    by = c("nace_r2" = "eurostat_nace_r2"),
+    relationship = "many-to-many"
+  ) %>% 
+  group_by(geo, time, fingreen_industry_code) %>% 
+  summarise(
+    values = sum(values * coalesce(disaggregation_coefficient, 1), na.rm = T),
+    .groups = "drop"
+  )
+
+# Validations
+# gfcf_eurostat %>% 
+#   left_join(
+#     filter(eurostat_to_fingreen_industry_nama_map, relationship != "extra"),
+#     by = c("nace_r2" = "eurostat_nace_r2"),
+#     relationship = "many-to-many"
+#   ) %>%
+#   filter(time == 2000L) %>% 
+#   View("q")
+# 
+# The accuracy is over 99 percent even at worst years, and 99.999 for the best
+# gfcf_transform %>% 
+#   group_by(geo, time) %>% 
+#   summarise(values = sum(values, na.rm = T)) %>% 
+#   left_join(
+#     filter(gfcf_eurostat, nace_r2 == "TOTAL"),
+#     by = c("geo", "time")
+#   ) %>% 
+#   mutate(differ = values.x - values.y) %>% 
+#   View("gfcf_comparison")
+
+capital_stock_transform <- capital_stock_eurostat %>% 
+  inner_join(
+    filter(eurostat_to_fingreen_industry_nama_map, relationship != "extra"),
+    by = c("nace_r2" = "eurostat_nace_r2"),
+    relationship = "many-to-many"
+  ) %>% 
+  group_by(geo, time, fingreen_industry_code) %>% 
+  summarise(
+    values = sum(values * coalesce(disaggregation_coefficient, 1), na.rm = T),
+    .groups = "drop"
+  )
+
+# Validations
+# capital_stock_eurostat %>%
+#   left_join(
+#     filter(eurostat_to_fingreen_industry_nama_map, relationship != "extra"),
+#     by = c("nace_r2" = "eurostat_nace_r2"),
+#     relationship = "many-to-many"
+#   ) %>%
+#   filter(time == 2000L) %>%
+#   View("q")
+# 
+# Again, accuracy even at worst is over 99 pct
+# capital_stock_transform %>%
+#   group_by(geo, time) %>%
+#   summarise(values = sum(values, na.rm = T)) %>%
+#   left_join(
+#     filter(capital_stock_eurostat, nace_r2 == "TOTAL"),
+#     by = c("geo", "time")
+#   ) %>%
+#   mutate(differ = values.x - values.y) %>%
+#   View("cs_comparison")
+
 # A validation data frame
 # check_df <- io_transform_use %>%
-#   filter(industry_code_type_use == "nace-rev-2") %>% 
-#   group_by(geo, time, fingreen_industry_code_ava, stk_flow) %>%
+#   group_by(geo, time, fingreen_industry_code_ava) %>%
 #   summarise(values = sum(values, na.rm = T), .groups = "drop") %>%
-#   inner_join(eurostat_to_fingreen_industry_map, by = c("fingreen_industry_code_ava" = "fingreen_industry_code")) %>%
+#   inner_join(eurostat_to_fingreen_industry_ava_map, by = c("fingreen_industry_code_ava" = "fingreen_industry_code")) %>%
 #   left_join(
 #     filter(io_df, ind_use == "TOTAL"),
-#     by = c("geo", "time", "stk_flow", "eurostat_industry_code" = "ind_ava")
+#     by = c("geo", "time", "eurostat_industry_code" = "ind_ava")
 #   ) %>%
 #   mutate(difference = values.x - values.y)
 # 
@@ -114,6 +195,16 @@ io_transform_use <- io_transform_ava %>%
 # c29_2018_imp_use <- filter(io_transform_use, fingreen_industry_code_ava == "C29" & time == 2018L & stk_flow == "IMP")
 
 
+# calculate technical coefficients ----------------------------------------
+
+column_totals <- io_transform_use %>% 
+  filter(fingreen_industry_code_ava == "TS_BP") %>% 
+  select(geo, time, fingreen_industry_code_use, column_total = values)
+
+technical_coefficients <- io_transform_use %>% 
+  left_join(column_totals, by = c("geo", "time", "fingreen_industry_code_use")) %>% 
+  mutate(technical_coefficient = values / column_total)
+
 # calculate growth distribution --------------------------------------------------------
 
 io_growth <- filter(io_transform_use, stk_flow == "TOTAL") %>% 
@@ -121,7 +212,6 @@ io_growth <- filter(io_transform_use, stk_flow == "TOTAL") %>%
   arrange(time) %>% 
   mutate(relative_growth = (values - lag(values)) / lag(values)) %>%
   ungroup()
-
 
 
 foo %>% 
