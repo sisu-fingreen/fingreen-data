@@ -54,7 +54,7 @@ save_plotly_plot <- function(plot, file, ...){
 
 # categorizations ----------------------------------------------------------
 
-coicop_to_fingreen_coicop <- function(codes){
+statfin_coicop_to_fingreen_coicop <- function(codes){
   library(dplyr)
   # Note that the category level has to be at least 2 (which corresponds to 3 in the official level)
   res <- case_when(
@@ -63,7 +63,7 @@ coicop_to_fingreen_coicop <- function(codes){
     grepl("^03\\.", x = codes, perl = T) ~ "CP03",
     grepl("^04\\.[1,2,3]", x = codes, perl = T) ~ "CP041_043",
     grepl("^04\\.4", x = codes, perl = T) ~ "CP044",
-    grepl("^01\\.5", x = codes, perl = T) ~ "CP045",
+    grepl("^04\\.5", x = codes, perl = T) ~ "CP045",
     grepl("^05\\.", x = codes, perl = T) ~ "CP05",
     grepl("^06\\.", x = codes, perl = T) ~ "CP06",
     grepl("^07\\.[1,2]", x = codes, perl = T) ~ "CP071_072",
