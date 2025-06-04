@@ -46,7 +46,7 @@ expenditure_share_data_years <- c(2010L, 2015L, 2020L)
 
 base_year <- 2010L
 
-closest_ref_year <- 2012L
+closest_ref_year <- 2012L # for the expenditures by income quintile data
 
 expenditures_dataset_info <- search_eurostat("Structure of consumption expenditure by income quintile and COICOP consumption purpose", type = "dataset")
 
@@ -145,14 +145,22 @@ consumption_by_quintile_normalized_to_base_year <- consumption_share_by_quintile
 
 # coicop consumption shares per quintile ----------------------------------
 
-expenditure_share_matrix <- expenditure_shares_processed %>% 
+expenditure_shares_wide <- expenditure_shares_processed %>% 
   group_by(geo, quantile, fingreen_coicop) %>% 
   summarise(
     mean_expenditure_share = mean(expenditure_share),
     .groups = "drop"
   ) %>%
   select(-geo) %>% 
-  tidyr::pivot_wider(names_from = quantile, values_from = mean_expenditure_share)
+  tidyr::pivot_wider(names_from = quantile, values_from = mean_expenditure_share) %>% 
+  arrange(fingreen_coicop)
+
+expenditure_share_matrix <- expenditure_shares_wide %>% 
+  select(-fingreen_coicop) %>% 
+  as.matrix()
+
+expenditure_matrix <- expenditure_share_matrix %*%
+  diag(consumption_by_quintile_normalized_to_base_year$expenditure_current_price_base_year)
 
 shares_of_sum <- function(x){return(x / sum(x))}
 
@@ -160,14 +168,51 @@ shares_of_sum <- function(x){return(x / sum(x))}
 
 desired_column_sums <- consumption_by_quintile_normalized_to_base_year$expenditure_current_price_base_year
 
-desired_column_sums <- rep(1, 5)
+# desired_column_sums <- rep(1, 5)
 
-desired_row_sums <- expenditures_by_fingreen_coicop$expenditure %>% 
-  shares_of_sum()
+desired_row_sums <- expenditures_by_fingreen_coicop$expenditure #%>% 
+  # shares_of_sum()
 
-bar <- mipfp::Ipfp(
-  seed = expenditure_share_matrix[ ,-1] %>% as.matrix(),
-  target.list = list(1,2),
+# This shows the difference between the hbs survey data and the official consumption expenditure data
+# expenditures_by_fingreen_coicop %>% 
+#   mutate(
+#     expected = rowSums(expenditure_matrix),
+#     rel_diff_to_expected = (expenditure - expected) / expected,
+#     description = fingreen_coicop_to_description(fingreen_coicop)
+#   ) %>% 
+#   View()
+
+expenditure_matrix_ipfp <- mipfp::Ipfp(
+  seed = expenditure_matrix,
+  target.list = list(1,2), # over 1=rows and 2=columns
   target.data = list(desired_row_sums, desired_column_sums)
 )
 
+# divide columns with column sums
+expenditure_shares_corrected <- expenditure_matrix_ipfp$x.hat %*% diag(1 / desired_column_sums)
+
+
+# write results -----------------------------------------------------------
+
+res_coicop_consumption_shares_per_quintile <- expenditure_shares_corrected %>%
+  as.data.frame() %>%
+  mutate(
+    fingreen_coicop = expenditure_shares_wide$fingreen_coicop,
+    .before = V1 # set as the first column
+  ) %>%
+  # Just an ugly way to name the columns the same as in expenditure_shares_wide
+  rename_with(.fn = function(x){return(colnames(expenditure_shares_wide))})
+
+res_consumption_by_quintile <- consumption_by_quintile_normalized_to_base_year %>% 
+  select(quantile, expenditure_current_price_base_year) %>% 
+  tidyr::pivot_wider(names_from = quantile, values_from = expenditure_current_price_base_year)
+
+writexl::write_xlsx(
+  res_coicop_consumption_shares_per_quintile,
+  path = "results/inputs-economy/consumption/coicop-consumption-shares-per-quintile.xlsx"
+)
+
+writexl::write_xlsx(
+  res_consumption_by_quintile,
+  path = "results/inputs-economy/consumption/consumption-by-quintile.xlsx"
+)
