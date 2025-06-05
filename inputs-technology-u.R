@@ -82,7 +82,7 @@ capital_stock_eurostat <- get_eurostat(
 # Transform the ind_ava
 io_transform_ava <- io_df %>%
   inner_join(
-    filter(eurostat_to_fingreen_industry_ava_map),
+    eurostat_to_fingreen_industry_ava_map,
     by = c("ind_ava" = "eurostat_industry_code"),
     relationship = "many-to-many"
   ) %>% 
@@ -90,7 +90,7 @@ io_transform_ava <- io_df %>%
     fingreen_industry_code_ava = coalesce(fingreen_industry_code, ind_ava),
     industry_code_type_ava = industry_code_type
   ) %>% 
-  group_by(geo, time, fingreen_industry_code_ava, ind_use) %>% 
+  group_by(geo, time, industry_code_type_ava, fingreen_industry_code_ava, ind_use) %>% 
   summarise(
     values = sum(values * coalesce(disaggregation_coefficient, 1), na.rm = T),
     .groups = "drop"
@@ -99,7 +99,7 @@ io_transform_ava <- io_df %>%
 # Transform the ind_use
 io_transform_use <- io_transform_ava %>% 
   inner_join(
-    filter(eurostat_to_fingreen_industry_use_map),
+    filter(eurostat_to_fingreen_industry_use_map, industry_code_type == "nace-rev-2"),
     by = c("ind_use" = "eurostat_industry_code"),
     relationship = "many-to-many"
   ) %>% 
@@ -107,7 +107,7 @@ io_transform_use <- io_transform_ava %>%
     fingreen_industry_code_use = coalesce(fingreen_industry_code, ind_use),
     industry_code_type_use = industry_code_type
   ) %>% 
-  group_by(geo, time, fingreen_industry_code_ava, fingreen_industry_code_use) %>% 
+  group_by(geo, time, industry_code_type_ava, fingreen_industry_code_ava, fingreen_industry_code_use) %>% 
   summarise(
     values = sum(values * coalesce(disaggregation_coefficient, 1), na.rm = T),
     .groups = "drop"
@@ -195,10 +195,19 @@ capital_stock_transform <- capital_stock_eurostat %>%
 # c29_2018_imp_use <- filter(io_transform_use, fingreen_industry_code_ava == "C29" & time == 2018L & stk_flow == "IMP")
 
 
+# calculate which code is what
+io_transform_use %>% 
+  #group_by(geo, time, fingreen_industry_code_use) %>% 
+  #mutate(column_sum_of_nace_or_esa = sum(values)) %>% 
+  filter(time == 2012L) %>% 
+  arrange(geo, time, desc(industry_code_type_ava), fingreen_industry_code_ava, fingreen_industry_code_use) %>% 
+  tidyr::pivot_wider(names_from = fingreen_industry_code_use, values_from = values) %>% 
+  clipr::write_clip()
+
 # calculate technical coefficients ----------------------------------------
 
 column_totals <- io_transform_use %>% 
-  filter(fingreen_industry_code_ava == "TS_BP") %>% 
+  filter(fingreen_industry_code_ava == "TS_BP") %>% # TS_BP gives the io-matrix column total, with the value of labour as well
   select(geo, time, fingreen_industry_code_use, column_total = values)
 
 technical_coefficients <- io_transform_use %>% 
@@ -207,8 +216,9 @@ technical_coefficients <- io_transform_use %>%
 
 # calculate growth distribution --------------------------------------------------------
 
-io_growth <- filter(io_transform_use, stk_flow == "TOTAL") %>% 
-  group_by(geo, industry_code_type_ava, fingreen_industry_code_ava, industry_code_type_use, fingreen_industry_code_use) %>% 
+intermediate_input_changes <- filter(technical_coefficients, industry_code_type_ava == "nace-rev-2") %>%
+  group_by(geo, time, fingreen_industry_code_use) %>%
+  summarise(sum_technical_coefficients = sum(technical_coefficient))
   arrange(time) %>% 
   mutate(relative_growth = (values - lag(values)) / lag(values)) %>%
   ungroup()
