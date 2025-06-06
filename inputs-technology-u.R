@@ -214,14 +214,52 @@ technical_coefficients <- io_transform_use %>%
   left_join(column_totals, by = c("geo", "time", "fingreen_industry_code_use")) %>% 
   mutate(technical_coefficient = values / column_total)
 
+bad_data_years <- technical_coefficients %>%
+  filter(industry_code_type_ava == "nace-rev-2" & technical_coefficient > 1) %>%
+  pull(time) %>% 
+  unique()
+
+if(!identical(bad_data_years, 2012)){
+  stop("Unexpected years with technical coefficients > 1, check the data")
+}
+
 # calculate growth distribution --------------------------------------------------------
 
 intermediate_input_changes <- filter(technical_coefficients, industry_code_type_ava == "nace-rev-2") %>%
   group_by(geo, time, fingreen_industry_code_use) %>%
-  summarise(sum_technical_coefficients = sum(technical_coefficient))
+  summarise(
+    sum_technical_coefficients = sum(technical_coefficient),
+    .groups = "drop"
+  ) %>%
+  group_by(geo, fingreen_industry_code_use) %>% 
   arrange(time) %>% 
-  mutate(relative_growth = (values - lag(values)) / lag(values)) %>%
-  ungroup()
+  mutate(
+    change_in_intermediate_inputs = (sum_technical_coefficients - lag(sum_technical_coefficients)) / lag(sum_technical_coefficients)
+  ) %>%
+  ungroup() %>% 
+  filter(
+    !between(time, bad_data_years, bad_data_years + 1) &
+      time > min(time)
+  )
+
+# plot to check
+technical_coefficients %>% 
+  filter(time != 2012 & industry_code_type_ava == "nace-rev-2") %>% 
+  mutate(
+    description = fingreen_industry_code_to_abbreviation(fingreen_industry_code_ava),
+    fingreen_industry_use = fingreen_industry_code_to_abbreviation(fingreen_industry_code_use)
+    ) %>% 
+  ggplot(aes(time, technical_coefficient, fill = fingreen_industry_code_ava, fontface = description)) +
+  geom_line(aes(color = fingreen_industry_code_ava), position = "stack") +
+  geom_area(position = "stack", stat = "identity", alpha = 0.5) +
+  facet_wrap(~fingreen_industry_use, nrow = 4)
+
+intermediate_input_changes %>% 
+  mutate(description = fingreen_industry_code_to_abbreviation(fingreen_industry_code_use)) %>% 
+  ggplot(aes(time, change_in_intermediate_inputs, group = fingreen_industry_code_ava, fontface = description)) +
+  geom_line(aes(color = fingreen_industry_code_ava), position = "stack") +
+  geom_area(position = "stack", stat = "identity", alpha = 0.5) +
+  facet_wrap(~fingreen_industry_code_use)
 
 
 foo %>% 
