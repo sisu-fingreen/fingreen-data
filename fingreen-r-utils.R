@@ -129,7 +129,7 @@ fingreen_industry_code_to_description <- function(codes){
   res <- factor(
     codes,
     levels = c("A1", "A2", "A3", "B", "C10_12", "C13_15", "C16_17", "C18", 
-               "C19", "C20_22", "C23", "C24_25", "C26_27 ", "C28", "C29", "C30", 
+               "C19", "C20_22", "C23", "C24_25", "C26_27", "C28", "C29", "C30", 
                "C31_32", "C33", "D1", "D2", "D3", "E", "F", "G", "H49_51", "H52_53", 
                "I", "J", "K", "L", "MN", "MN_72", "MN_73", "O", "P", "Q", "R", 
                "S95", "ST"),
@@ -164,7 +164,7 @@ fingreen_industry_code_to_abbreviation <- function(codes){
   res <- factor(
     codes,
     levels = c("A1", "A2", "A3", "B", "C10_12", "C13_15", "C16_17", "C18", 
-               "C19", "C20_22", "C23", "C24_25", "C26_27 ", "C28", "C29", "C30", 
+               "C19", "C20_22", "C23", "C24_25", "C26_27", "C28", "C29", "C30", 
                "C31_32", "C33", "D1", "D2", "D3", "E", "F", "G", "H49_51", "H52_53", 
                "I", "J", "K", "L", "MN", "MN_72", "MN_73", "O", "P", "Q", "R", 
                "S95", "ST"),
