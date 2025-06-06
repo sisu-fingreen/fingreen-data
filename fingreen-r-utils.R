@@ -125,6 +125,64 @@ fingreen_coicop_to_description <- function(codes){
   return(res)
 }
 
+fingreen_industry_code_to_description <- function(codes){
+  res <- factor(
+    codes,
+    levels = c("A1", "A2", "A3", "B", "C10_12", "C13_15", "C16_17", "C18", 
+               "C19", "C20_22", "C23", "C24_25", "C26_27 ", "C28", "C29", "C30", 
+               "C31_32", "C33", "D1", "D2", "D3", "E", "F", "G", "H49_51", "H52_53", 
+               "I", "J", "K", "L", "MN", "MN_72", "MN_73", "O", "P", "Q", "R", 
+               "S95", "ST"),
+    labels = c("01 Crop and animal production, hunting and related service activities", 
+               "02 Forestry and logging", "03 Fishing and aquaculture", "B Mining and quarrying (05-09)", 
+               "10-12 Food, beverages and tobacco", "13-15 Textile, clothing and leather industry", 
+               "16-17 Forest industry", "18 Printing and reproduction of recorded media", 
+               "19 Manufacture of coke and refined petroleum products", "20-22 Chemical industry - Except for petroleum (altered)", 
+               "23 Manufacture of other non-metallic mineral products", "24-25 Manufacture of basic metals and fabricated metal products (altered)", 
+               "26-27 Manufacture of electrical and electronic products", "28 Manufacture of machinery and equipment n.e.c.", 
+               "29 Manufacture of motor vehicles, trailers and semi-trailers", 
+               "30 Manufacture of other transport equipment", "31-32 Manufacture of furniture and other products", 
+               "33 Repair and installation of machinery and equipment", "35 Electricity (altered; D disaggreagted)", 
+               "35 Gas (altered; D disaggreagted)", "35 Heat (altered; D disaggreagted)", 
+               "E Water supply; sewerage, waste management and remediation activities (36-39)", 
+               "F Construction (41-43)", "G Wholesale and retail trade; repair of motor vehicles and motorcycles (45-47)", 
+               "49-51 Transportation (altered; Land, Water and Air only)", "52-53 Transport related logistics, warehousing and postal services (altered)", 
+               "I Accommodation and food service activities (55-56)", "J Information and communication (58-63)", 
+               "K Financial and insurance activities (64-66)", "L Real estate activities (68)", 
+               "MN Professional, scientific and technical activities, administrative and support service activities - Except for scientific R&D and advertising (altered; 69-71, 74-82)", 
+               "72 Scientific research and development", "73 Advertising and market research", 
+               "O Public administration and defence; compulsory social security (84)", 
+               "P Education (85)", "Q Human health and social work activities (86-88)", 
+               "R Arts, entertainment and recreation (90-93)", "95 Repair of computers and personal and household goods", 
+               "ST Other service activities - Including household emplyers, excluding repair (altered; 94, 96-98)"
+    )
+  ) %>% as.character()
+  return(res)
+}
+
+fingreen_industry_code_to_abbreviation <- function(codes){
+  res <- factor(
+    codes,
+    levels = c("A1", "A2", "A3", "B", "C10_12", "C13_15", "C16_17", "C18", 
+               "C19", "C20_22", "C23", "C24_25", "C26_27 ", "C28", "C29", "C30", 
+               "C31_32", "C33", "D1", "D2", "D3", "E", "F", "G", "H49_51", "H52_53", 
+               "I", "J", "K", "L", "MN", "MN_72", "MN_73", "O", "P", "Q", "R", 
+               "S95", "ST"),
+    labels = c("A1 agriculture", "A2 forestry", "A3 fishing", "B mining", 
+               "C10_12 manu_food", "C13_15 manu_clothing", "C16_17 manu_forest", 
+               "C18 manu_record", "C19 manu_petroleum", "C20_22 manu_chemical", 
+               "C23 manu_mineral", "C24_25 manu_metal", "C26_27  manu_electrical", 
+               "C28 manu_machine", "C29 manu_vechicles", "C30 manu_transport", 
+               "C31_32 manu_furniture", "C33 manu_install", "D1 electricity", 
+               "D2 gas", "D3 heat", "E water", "F construction", "G commerce", 
+               "H49_51 transportation", "H52_53 logistics", "I hospitality", 
+               "J ict", "K finance", "L realestate", "MN serv_prof", "MN_72 serv_science", 
+               "MN_73 serv_advertising", "O public", "P education", "Q health", 
+               "R entertainment", "S95 serv_repair", "ST serv_other")
+  ) %>% as.character()
+  return(res)
+}
+
 # misc --------------------------------------------------------------------
 
 convert_eur_value_between_years <- function(x, from, to){
