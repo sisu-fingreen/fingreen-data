@@ -246,7 +246,137 @@ technical_coefficient_growth <- filter(technical_coefficients, industry_code_typ
   # Filter out infinite relative growth
   filter(!is.infinite(g_technical_coefficient))
 
-total_intermediate_input_changes <- filter(technical_coefficients, industry_code_type_ava == "nace-rev-2") %>%
+# plot technical coefficients ---------------------------------------------
+
+p_technical_coefficients_by_industry <- technical_coefficients %>% 
+  filter(time != 2012 & industry_code_type_ava == "nace-rev-2") %>% 
+  mutate(
+    description = fingreen_industry_code_to_abbreviation(fingreen_industry_code_ava),
+    fingreen_industry_use = fingreen_industry_code_to_abbreviation(fingreen_industry_code_use)
+    ) %>% 
+  ggplot(aes(time, technical_coefficient, fill = fingreen_industry_code_ava, fontface = description)) +
+  # geom_line(aes(color = fingreen_industry_code_ava), position = "stack") +
+  # geom_area(position = "stack", stat = "identity", alpha = 0.5) +
+  geom_col() +
+  facet_wrap(~fingreen_industry_use, nrow = 4)
+
+pl_technical_coefficients_by_industry <- plotly::ggplotly(p_technical_coefficients_by_industry)
+
+save_plotly_plot(pl_technical_coefficients_by_industry, file = paste0(graphs_dir, "/technical-coefficients-by-industry.html"))
+
+# normalization -----------------------------------------------------------
+
+gfcf_previous_year <- gfcf_transform %>% 
+  mutate(time = time + 1L)
+
+# impute gfcf for fishing A3, since the data is missing for 2010-2016. The capital stock
+# seems to be decreasing, so let us impute the smallest observed gfcf value for A3.
+min_gfcf_a3 <- gfcf_previous_year %>%
+  filter(fingreen_industry_code == "A3" & gfcf_meur != 0) %>% 
+  pull(gfcf_meur) %>% 
+  min()
+
+gfcf_previous_year_imputed <- gfcf_previous_year %>% 
+  mutate(
+    gfcf_meur = case_when(
+      fingreen_industry_code == "A3" & gfcf_meur == 0 ~ min_gfcf_a3,
+      T ~ gfcf_meur
+    )
+  )
+
+shares_of_new_capital <- capital_stock_transform %>% 
+  left_join(gfcf_previous_year_imputed, by = c("geo", "time", "fingreen_industry_code")) %>% 
+  mutate(share_of_new_capital = gfcf_meur / net_capital_stock_meur)
+
+# Don't allow negative values or too tiny shares of new capital,
+# because they would have weird effects in the normalization done next
+n_too_little_new_capital <- shares_of_new_capital %>% 
+  filter(share_of_new_capital < 0.001) %>% 
+  count() %>% 
+  pull(n)
+
+if(n_too_little_new_capital > 0) {
+  stop("There is an unexpected observation with very low share of new capital. Please check data.")
+}
+
+technical_coefficient_growth_normalized <- technical_coefficient_growth %>% 
+  inner_join(shares_of_new_capital, by = c("geo", "time", "fingreen_industry_code_use" = "fingreen_industry_code")) %>% 
+  mutate(psi_a = g_technical_coefficient / share_of_new_capital)
+
+# distribution plots ------------------------------------------------------
+
+technical_coefficient_growth_normalized %>% 
+  ggplot(aes(psi_a)) +
+  geom_density() +
+  coord_cartesian(xlim = c(-100, 1000))
+
+technical_coefficient_growth_normalized %>% 
+  ggplot(aes(log(technical_coefficient))) +
+  geom_density()
+  # coord_cartesian(xlim = c(0, 0.05))
+
+technical_coefficient_growth_normalized %>% 
+  ggplot(aes(g_technical_coefficient)) +
+  geom_density() +
+  scale_x_log10(labels = scales::label_number()) +
+  ggtitle("Välituotekäytön suhteelliset muutokset, jakauma log-asteikolla")
+
+technical_coefficient_growth_normalized %>% 
+  ggplot(aes(g_technical_coefficient)) +
+  geom_density() +
+  ggtitle("Välituotekäytön suhteelliset muutokset, jakauma lineaarisella asteikolla")
+
+technical_coefficient_growth_normalized %>% 
+  ggplot(aes(technical_coefficient, share_of_new_capital)) +
+  geom_point(alpha = 0.7, color = "blue")
+
+technical_coefficient_growth_normalized %>% 
+  ggplot(aes(technical_coefficient, share_of_new_capital)) +
+  geom_point(alpha = 0.7, color = "blue") +
+  scale_x_log10()
+
+technical_coefficient_growth_normalized %>% 
+  ggplot(aes(g_technical_coefficient, share_of_new_capital)) +
+  geom_point(alpha = 0.7, color = "blue") +
+  scale_x_log10()
+
+# plot normalized coefficients
+
+technical_coefficient_growth_normalized %>% 
+  filter(time != 2012 & industry_code_type_ava == "nace-rev-2") %>% 
+  mutate(
+    description = fingreen_industry_code_to_abbreviation(fingreen_industry_code_ava),
+    fingreen_industry_use = fingreen_industry_code_to_abbreviation(fingreen_industry_code_use)
+  ) %>% 
+  ggplot(aes(time, psi_a, fill = fingreen_industry_code_ava, fontface = description)) +
+  geom_line(aes(color = fingreen_industry_code_ava)) +
+  # geom_area(position = "stack", stat = "identity", alpha = 0.5) +
+  facet_wrap(~fingreen_industry_use, nrow = 4)
+
+# filter outliers ---------------------------------------------------------
+
+outlier_rows <- technical_coefficient_growth_normalized %>%
+  select(psi_a) %>% 
+  performance::check_outliers(
+    method = "zscore_robust",
+    threshold = 250
+  ) %>% 
+  attributes(.) %>% 
+  getElement("data") %>% 
+  filter(Outlier == 1L) %>% 
+  pull(Row)
+
+outlier_ids <- technical_coefficient_growth_normalized %>% 
+  slice(outlier_rows) %>% 
+  select(geo, time, fingreen_industry_code_use) %>%
+  distinct()
+
+technical_coefficient_growth_filtered <- technical_coefficient_growth_normalized %>% 
+  anti_join(outlier_ids, by = c("geo", "time", "fingreen_industry_code_use"))
+
+# total intermediate input changes ----------------------------------------
+
+total_intermediate_input_changes <- technical_coefficient_growth_filtered %>%
   group_by(geo, time, fingreen_industry_code_use) %>%
   summarise(
     sum_technical_coefficients = sum(technical_coefficient),
@@ -263,25 +393,33 @@ total_intermediate_input_changes <- filter(technical_coefficients, industry_code
       time > min(time)
   )
 
+total_intermediate_input_changes_neg <- total_intermediate_input_changes %>% 
+  filter(change_in_intermediate_inputs < 0)
 
-# plots -------------------------------------------------------------------
+total_intermediate_input_changes_pos <- total_intermediate_input_changes %>% 
+  filter(change_in_intermediate_inputs > 0)
 
-technical_coefficients %>% 
-  filter(time != 2012 & industry_code_type_ava == "nace-rev-2") %>% 
-  mutate(
-    description = fingreen_industry_code_to_abbreviation(fingreen_industry_code_ava),
-    fingreen_industry_use = fingreen_industry_code_to_abbreviation(fingreen_industry_code_use)
-    ) %>% 
-  ggplot(aes(time, technical_coefficient, fill = fingreen_industry_code_ava, fontface = description)) +
-  geom_line(aes(color = fingreen_industry_code_ava), position = "stack") +
-  geom_area(position = "stack", stat = "identity", alpha = 0.5) +
-  facet_wrap(~fingreen_industry_use, nrow = 4)
+min_neg_n_obs <- total_intermediate_input_changes_neg %>% 
+  count(fingreen_industry_code_use) %>% 
+  summarise(min_n_obs = min(n)) %>% 
+  pull(min_n_obs)
+
+min_pos_n_obs <- total_intermediate_input_changes_pos %>% 
+  count(fingreen_industry_code_use) %>% 
+  summarise(min_n_obs = min(n)) %>% 
+  pull(min_n_obs)
+
+if(min_neg_n_obs < 2 | min_pos_n_obs < 2){
+  stop("There are fewer than 2 observations for positive or negative changes in some industry. Cannot calculate distribution. Please check data.")
+}
+
+# total intermediate input change plots
 
 total_intermediate_input_changes %>% 
   mutate(description = fingreen_industry_code_to_abbreviation(fingreen_industry_code_use)) %>% 
   ggplot(aes(time, change_in_intermediate_inputs, group = description)) +
   geom_line(aes(color = description))
-  # geom_area(position = "stack", stat = "identity", alpha = 0.5)
+# geom_area(position = "stack", stat = "identity", alpha = 0.5)
 
 filter(total_intermediate_input_changes) %>% 
   group_by(fingreen_industry_code_use) %>% 
@@ -297,7 +435,7 @@ filter(total_intermediate_input_changes) %>%
   geom_line(aes(color = fingreen_industry_code_ava), position = "stack") +
   geom_area(position = "stack", stat = "identity", alpha = 0.5) +
   facet_wrap(~fingreen_industry_use)
-  
+
 filter(total_intermediate_input_changes) %>% 
   group_by(fingreen_industry_code_use) %>% 
   summarise(max_abs_change = max(abs(change_in_intermediate_inputs))) %>%
@@ -312,75 +450,13 @@ filter(total_intermediate_input_changes) %>%
   geom_col(aes(color = fingreen_industry_code_ava), position = "stack") +
   facet_wrap(~fingreen_industry_use)
 
-# normalization -----------------------------------------------------------
-
-gfcf_previous_year <- gfcf_transform %>% 
-  mutate(time = time + 1L)
-
-shares_of_new_capital <- capital_stock_transform %>% 
-  left_join(gfcf_previous_year, by = c("geo", "time", "fingreen_industry_code")) %>% 
-  mutate(share_of_new_capital = gfcf_meur / net_capital_stock_meur) %>% 
-  # Don't allow negative values or too tiny shares of new capital,
-  # because they would have weird effects in the normalization done next
-  filter(share_of_new_capital > 0.001) %>% 
-  select(-gfcf_meur, -net_capital_stock_meur)
-
-total_intermediate_input_changes_normalized <- total_intermediate_input_changes %>% 
-  inner_join(shares_of_new_capital, by = c("geo", "time", "fingreen_industry_code_use" = "fingreen_industry_code")) %>% 
-  mutate(change_in_intermediate_inputs_normalized = change_in_intermediate_inputs / share_of_new_capital)
-
-technical_coefficient_growth_normalized <- technical_coefficient_growth %>% 
-  inner_join(shares_of_new_capital, by = c("geo", "time", "fingreen_industry_code_use" = "fingreen_industry_code")) %>% 
-  mutate(psi_a = g_technical_coefficient / share_of_new_capital)
-
-total_intermediate_input_changes_normalized_neg <- total_intermediate_input_changes_normalized %>% 
-  filter(psi_a < 0)
-
-total_intermediate_input_changes_normalized_pos <- total_intermediate_input_changes_normalized %>% 
-  filter(psi_a > 0)
-
-min_neg_n_obs <- total_intermediate_input_changes_normalized_neg %>% 
-  count(fingreen_industry_code_use) %>% 
-  summarise(min_n_obs = min(n)) %>% 
-  pull(min_n_obs)
-
-min_pos_n_obs <- total_intermediate_input_changes_normalized_pos %>% 
-  count(fingreen_industry_code_use) %>% 
-  summarise(min_n_obs = min(n)) %>% 
-  pull(min_n_obs)
-
-if(min_neg_n_obs < 2 | min_pos_n_obs < 2){
-  stop("There are fewer than 2 observations for positive or negative changes in some industry. Cannot calculate distribution. Please check data.")
-}
-
-# TODO: filter outliers using the performance package, as per Theriault et al
-
-technical_coefficient_growth_filtered <- technical_coefficient_growth_normalized %>% 
-  mutate(z_score = (psi_a - mean(psi_a)) / sd(psi_a)) %>% 
-  filter(abs(z_score) > 8)
-
-
-# plot normalized coefficients
-
-technical_coefficient_growth_normalized %>% 
-  filter(time != 2012 & industry_code_type_ava == "nace-rev-2") %>% 
-  mutate(
-    description = fingreen_industry_code_to_abbreviation(fingreen_industry_code_ava),
-    fingreen_industry_use = fingreen_industry_code_to_abbreviation(fingreen_industry_code_use)
-  ) %>% 
-  ggplot(aes(time, psi_a, fill = fingreen_industry_code_ava, fontface = description)) +
-  geom_line(aes(color = fingreen_industry_code_ava)) +
-  # geom_area(position = "stack", stat = "identity", alpha = 0.5) +
-  facet_wrap(~fingreen_industry_use, nrow = 4)
-
-# TODO: filter outliers?
-
 # calculate distributions -------------------------------------------------
 
-u_neg_norm_long <- technical_coefficients_normalized %>%
-  semi_join(total_intermediate_input_changes_normalized_neg, by = c("geo", "time", "fingreen_industry_code_use")) %>% 
-  
-  
+u_neg_norm_long <- technical_coefficients_filtered %>%
+  semi_join(total_intermediate_input_changes_normalized_neg, by = c("geo", "time", "fingreen_industry_code_use")) %>%
+  group_by()
+
+
 
 # results -----------------------------------------------------------------
 
