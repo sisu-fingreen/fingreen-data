@@ -226,7 +226,7 @@ if(!identical(bad_data_years, 2012L)){
   stop("Unexpected years with technical coefficients > 1, check the data")
 }
 
-# growth in intermediate inputs --------------------------------------------------------
+# growth of technical coefficients --------------------------------------------------------
 
 technical_coefficient_growth <- filter(technical_coefficients, industry_code_type_ava == "nace-rev-2") %>%
   group_by(geo, fingreen_industry_code_use, fingreen_industry_code_ava) %>%
@@ -450,23 +450,46 @@ filter(total_intermediate_input_changes) %>%
   geom_col(aes(color = fingreen_industry_code_ava), position = "stack") +
   facet_wrap(~fingreen_industry_use)
 
-# calculate distributions -------------------------------------------------
+# calculate distribution stats -------------------------------------------------
 
-u_neg_norm_long <- technical_coefficients_filtered %>%
-  semi_join(total_intermediate_input_changes_normalized_neg, by = c("geo", "time", "fingreen_industry_code_use")) %>%
-  group_by()
+calculate_u_stats <- function(df, filtering_df){
+  res <- df %>%
+    semi_join(filtering_df, by = c("geo", "time", "fingreen_industry_code_use")) %>%
+    group_by(geo, fingreen_industry_code_ava, fingreen_industry_code_use) %>% 
+    summarise(
+      mean = mean(psi_a),
+      median = median(psi_a),
+      sample_sd = sd(psi_a),
+      n = n(),
+      .groups = "drop"
+    ) %>% 
+    tidyr::pivot_longer(cols = mean:n, names_to = "stat", values_to = "value") %>% 
+    mutate(
+      stat = factor(
+        stat,
+        levels = c("mean", "median", "sample_sd", "n"),
+        labels = c("Mean", "Median", "Sample SD", "n")
+      )
+    )
+  return(res)
+}
 
-
+u_neg_norm_long <- calculate_u_stats(technical_coefficient_growth_filtered, total_intermediate_input_changes_neg)
+u_pos_norm_long <- calculate_u_stats(technical_coefficient_growth_filtered, total_intermediate_input_changes_pos)
 
 # results -----------------------------------------------------------------
 
-u_neg_norm <- intermediate_input_changes_normalized_neg %>%
-  inner_join()
-  arrange(geo, time, desc(industry_code_type_ava), fingreen_industry_code_ava, desc(industry_code_type_use), fingreen_industry_code_use) %>% 
-  select(-industry_code_type_use, -values) %>%
-  tidyr::pivot_wider(names_from = fingreen_industry_code_use, values_from = psi_a) %>% 
-  filter(time > min(time))
+prepare_results <- function(df){
+  res <- df %>% 
+    arrange(geo, stat, fingreen_industry_code_ava, fingreen_industry_code_use) %>%
+    relocate(stat, .after = geo) %>% 
+    tidyr::pivot_wider(names_from = "fingreen_industry_code_use", values_from = "value")
+  return(res)
+}
 
-res_list[["total_growth"]] <- io_growth
+res_list <- list()
 
-writexl::write_xlsx(res_list, path = "results/inputs-economy/inputoutput/io-annual-fi-2010-2022.xlsx")
+res_list[["u_neg_norm"]] <- prepare_results(u_neg_norm_long)
+res_list[["u_pos_norm"]] <- prepare_results(u_pos_norm_long)
+
+writexl::write_xlsx(res_list, path = paste0(results_dir, "/u-neg-norm-pos-norm.xlsx"))
