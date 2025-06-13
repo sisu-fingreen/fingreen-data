@@ -16,19 +16,22 @@ stopifnot(is_installed("writexl"))
 
 working_directory <- getwd()
 
-graphs_dir <- paste0(working_directory, "/inputs-environment/energy/graphs/")
+graphs_dir <- paste0(working_directory, "/graphs/inputs-environment/energy")
 create_dir_if_not_exists(graphs_dir, "graphs")
 
-results_dir <- paste0(working_directory, "/inputs-environment/energy/results/")
+results_dir <- paste0(working_directory, "/results/inputs-environment/energy")
 create_dir_if_not_exists(results_dir, "results")
 
 # source data --------------------------------------------------------------
+
+base_year <- 2011L
 
 pefa <- get_eurostat(
   "env_ac_pefasu",
   time_format = "num",
   filters = list(
-    geo = "FI"
+    geo = "FI",
+    time = base_year
   )
 )
 
@@ -38,7 +41,7 @@ energy_balance <- get_eurostat(
   filters = list(
     geo = "FI",
     unit = "TJ",
-    
+    time = base_year
   )
 )
 
@@ -142,9 +145,9 @@ obs_counts_by_prod_nrg <- pefa %>%
 foo <- siec_vocabulary %>% 
   mutate(prod_nrg_description = siec_to_pefa_category(siec_description)) %>% 
   left_join(prod_nrg_vocabulary, by = "prod_nrg_description") %>% 
-  left_join(obs_counts_by_siec) %>% 
+  full_join(obs_counts_by_siec) %>% 
   full_join(obs_counts_by_prod_nrg) %>% 
   select(-prod_nrg_description) %>% 
   left_join(prod_nrg_vocabulary)
 
-TODO: TODO: Check P17-P22 energy products, why are they not mapped in the Pisa python code
+# TODO: Check P17-P22 energy products, why are they not mapped in the Pisa python code
