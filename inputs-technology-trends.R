@@ -24,13 +24,15 @@ create_dir_if_not_exists(results_dir, "results")
 
 # source data --------------------------------------------------------------
 
+data_years <- 2010L:2021L
+
 # When the function asks if you want to stop downloading, input n for no in the r console
 io_df <- get_eurostat(
   "naio_10_cp1750",
   time_format = "num",
   filters = list(
     geo = "FI",
-    time = c(2010L:2022L),
+    time = data_years,
     unit = "MIO_EUR"
   )
 )
@@ -89,16 +91,103 @@ io_inflation_corrected <- io_transform_use %>%
 # Import shares for final demand of households (P3_S14), final demand of government (P3_S13)
 # and GFCF (P51G)
 
-io_inflation_corrected %>% 
+calculate_import_share_trend <- function(io_data, grouping_vars){
+  # note that the "trend" is the median of the relative y2y changes
+  res <- io_data %>% 
+    tidyr::pivot_wider(names_from = "stk_flow", values_from = "values") %>%
+    mutate(import_share = coalesce(IMP, 0) / TOTAL) %>%
+    group_by(pick(all_of(grouping_vars))) %>% 
+    arrange(time) %>% 
+    mutate(
+      rel_change_import_share = if_else(
+        import_share == 0 & lag(import_share) == 0,
+        0,
+        (import_share - lag(import_share)) / lag(import_share)
+      )
+    ) %>%
+    filter(time != min(time)) %>% 
+    summarise(
+      median_rel_change_import_share = coalesce(
+        median(rel_change_import_share, na.rm = T),
+        0
+      ),
+      .groups = "drop"
+    )
+  return(res)
+}
+
+fd_import_share_changes <- io_inflation_corrected %>% 
   filter(
     industry_code_type_ava == "nace-rev-2" &
       fingreen_industry_code_use %in% c("P3_S14", "P3_S13", "P51G")
   ) %>% 
-  tidyr::pivot_wider(names_from = "stk_flow", values_from = "values") %>%
-  mutate(import_share = IMP / TOTAL) %>%
+  calculate_import_share_trend(
+    grouping_vars = c("geo", "fingreen_industry_code_ava", "fingreen_industry_code_use")
+  )
+
+res_fd_import_shares <- fd_import_share_changes %>% 
+  mutate(
+    category = factor(
+      fingreen_industry_code_use,
+      levels = c("P3_S14", "P3_S13", "P51G"),
+      labels = c("CONS_h", "CONS_g", "GFCF")
+    )
+  ) %>%
+  select(-fingreen_industry_code_use) %>% 
+  arrange(geo, category, fingreen_industry_code_ava) %>% 
+  tidyr::pivot_wider(names_from = "fingreen_industry_code_ava", values_from = "median_rel_change_import_share")
+
+
+# Z cell import shares ----------------------------------------------------
+
+# Import shares for intermediate input use by industry (io matrix)
+
+io_import_share_changes <- io_inflation_corrected %>% 
+  filter(
+    industry_code_type_ava == "nace-rev-2" &
+      industry_code_type_use == "nace-rev-2"
+  ) %>% 
+  calculate_import_share_trend(
+    grouping_vars = c("geo", "fingreen_industry_code_ava", "fingreen_industry_code_use")
+  )
+
+res_z_cell_import_shares <- io_import_share_changes %>%
+  arrange(geo, fingreen_industry_code_ava, fingreen_industry_code_use) %>% 
+  tidyr::pivot_wider(names_from = "fingreen_industry_code_use", values_from = "median_rel_change_import_share")
+
+# trend gvex --------------------------------------------------------------
+
+# Trends in exports (P6) and government final demand (P3_S13)
+
+export_and_government_fd_changes <- io_inflation_corrected %>% 
+  filter(
+    industry_code_type_ava == "nace-rev-2" &
+      fingreen_industry_code_use %in% c("P6", "P3_S13") &
+      stk_flow == "TOTAL"
+  ) %>% 
   group_by(geo, fingreen_industry_code_ava, fingreen_industry_code_use) %>% 
   arrange(time) %>% 
   mutate(
-    rel_change_import_share = (import_share - lag(import_share)) /  lag(import_share)
+    rel_change = if_else(
+      values == 0 & lag(values) == 0,
+      0,
+      (values - lag(values)) / lag(values)
+    )
+  ) %>%
+  filter(time != min(time)) %>%
+  summarise(
+    median_rel_change = coalesce(median(rel_change, na.rm = T), 0),
+    .groups = "drop"
   )
 
+res_trend_gvex <- export_and_government_fd_changes %>% 
+  mutate(
+    category = factor(fingreen_industry_code_use, levels = c("P6", "P3_S13"), labels = c("exp", "gov"))
+  ) %>% 
+  select(-fingreen_industry_code_use) %>% 
+  arrange(geo, category, fingreen_industry_code_ava) %>% 
+  tidyr::pivot_wider(names_from = "fingreen_industry_code_ava", values_from = "median_rel_change")
+
+# validations -------------------------------------------------------------
+
+# TODO
