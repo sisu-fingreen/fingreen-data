@@ -24,6 +24,8 @@ create_dir_if_not_exists(results_dir, "results")
 
 # source data --------------------------------------------------------------
 
+catn("Getting the data.")
+
 data_years <- 2010L:2021L
 
 # When the function asks if you want to stop downloading, input n for no in the r console
@@ -46,6 +48,8 @@ esa_2010_vocabulary <- read.csv(
   select(esa_2010_description = Label, esa_2010_code = Notation)
 
 # transform industry structure --------------------------------------------
+
+catn("Processing data.")
 
 # Transform the ind_ava
 io_transform_ava <- io_df %>%
@@ -133,8 +137,8 @@ res_fd_import_shares <- fd_import_share_changes %>%
       labels = c("CONS_h", "CONS_g", "GFCF")
     )
   ) %>%
-  select(-fingreen_industry_code_use) %>% 
-  arrange(geo, category, fingreen_industry_code_ava) %>% 
+  select(-fingreen_industry_code_use, -geo) %>% 
+  arrange(category, fingreen_industry_code_ava) %>% 
   tidyr::pivot_wider(names_from = "fingreen_industry_code_ava", values_from = "median_rel_change_import_share")
 
 
@@ -152,7 +156,8 @@ io_import_share_changes <- io_inflation_corrected %>%
   )
 
 res_z_cell_import_shares <- io_import_share_changes %>%
-  arrange(geo, fingreen_industry_code_ava, fingreen_industry_code_use) %>% 
+  arrange(geo, fingreen_industry_code_ava, fingreen_industry_code_use) %>%
+  select(-geo) %>% 
   tidyr::pivot_wider(names_from = "fingreen_industry_code_use", values_from = "median_rel_change_import_share")
 
 # trend gvex --------------------------------------------------------------
@@ -184,10 +189,43 @@ res_trend_gvex <- export_and_government_fd_changes %>%
   mutate(
     category = factor(fingreen_industry_code_use, levels = c("P6", "P3_S13"), labels = c("exp", "gov"))
   ) %>% 
-  select(-fingreen_industry_code_use) %>% 
-  arrange(geo, category, fingreen_industry_code_ava) %>% 
+  select(-fingreen_industry_code_use, -geo) %>% 
+  arrange(category, fingreen_industry_code_ava) %>% 
   tidyr::pivot_wider(names_from = "fingreen_industry_code_ava", values_from = "median_rel_change")
 
 # validations -------------------------------------------------------------
 
-# TODO
+catn("Data processing done. Validating...")
+
+# Check for right number of cols and rows
+stopifnot(ncol(res_fd_import_shares) == 40)
+stopifnot(ncol(res_z_cell_import_shares) == 40)
+stopifnot(ncol(res_fd_import_shares) == 40)
+
+stopifnot(nrow(res_fd_import_shares) == 3)
+stopifnot(nrow(res_z_cell_import_shares) == 39)
+stopifnot(nrow(res_trend_gvex) == 2)
+
+
+# Check the means of the resulting data. Reference values are ad hoc, if tests do not pass
+# the data might still be fine but it's good to check.
+
+mean_import_share_trends <- res_fd_import_shares %>% 
+  rowwise(category) %>% 
+  summarise(mean_import_share_trend = mean(c_across(A1:ST)), .groups = "drop") %>% 
+  pull(mean_import_share_trend, name = category)
+
+stopifnot(between(mean_import_share_trends["CONS_h"], 0, 0.04))
+stopifnot(between(mean_import_share_trends["CONS_g"], -0.01, 0.01))
+stopifnot(between(mean_import_share_trends["GFCF"], -0.02, 0.02))
+
+catn("Validation tests passed. Writing results...")
+
+# write results -----------------------------------------------------------
+
+res_list <- list(res_fd_import_shares, res_z_cell_import_shares, res_trend_gvex)
+names(res_list) <- c("FD import shares", "Z cell import shares", "trend gvex")
+
+writexl::write_xlsx(res_list, path = paste0(results_dir, "/technology-trends.xlsx"))
+
+catn("...finished.")
