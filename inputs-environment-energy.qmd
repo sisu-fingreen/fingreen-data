@@ -1,0 +1,1596 @@
+---
+title: PEFA
+jupyter: python3
+---
+
+```{python}
+import os
+from tqdm.notebook import tqdm,trange
+import pymrio as py
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import math
+import pickle
+from importlib import reload
+#from RAS import Energy_A
+import sys
+#import floweaver as fw
+```
+
+
+
+## Load and prepare
+
+### Load and aggregate PEFA
+
+```{python}
+# As we only have total supply, we use total demand. We have to get rid of double counting later
+supply=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010.xlsx', header=[10], index_col=[0], sheet_name='Sheet 1',nrows=39)
+use=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010.xlsx', header=[10], index_col=[0], sheet_name='Sheet 2',nrows=39)
+```
+
+```{python}
+E_products_PEFA=['Hard coal','Brown coal and peat','Derived gases (= manufactured gases excl. biogas)','Secondary coal products (coke, coal tar, patent fuel, BKB and peat products)','Crude oil, NGL, and other hydrocarbons (excl. bio)','Natural gas (without bio)', 'Motor spirit (without bio)','Kerosenes and jet fuels (without bio)', 'Naphtha', 'Transport diesel (without bio)','Heating and other gasoil (without bio)', 'Residual fuel oil','Refinery gas, ethane and LPG','Other petroleum products incl. additives/oxygenates and refinery feedstocks','Nuclear fuel', 'Wood, wood waste and other solid biomass, charcoal','Liquid biofuels', 'Biogas', 'Electrical energy', 'Heat']
+
+A=['Crop and animal production, hunting and related service activities','Forestry and logging','Fishing and aquaculture']
+B=['Mining and quarrying']
+C=['Manufacture of food products; beverages and tobacco products','Manufacture of textiles, wearing apparel, leather and related products','Manufacture of wood and of products of wood and cork, except furniture; manufacture of articles of straw and plaiting materials','Manufacture of paper and paper products','Printing and reproduction of recorded media','Manufacture of chemicals and chemical products','Manufacture of basic pharmaceutical products and pharmaceutical preparations','Manufacture of rubber and plastic products','Manufacture of other non-metallic mineral products','Manufacture of basic metals','Manufacture of fabricated metal products, except machinery and equipment','Manufacture of computer, electronic and optical products','Manufacture of electrical equipment','Manufacture of machinery and equipment n.e.c.','Manufacture of furniture; other manufacturing','Repair and installation of machinery and equipment']
+C19=['Manufacture of coke and refined petroleum products']
+C29=['Manufacture of motor vehicles, trailers and semi-trailers','Manufacture of other transport equipment']
+D=['Electricity, gas, steam and air conditioning supply']
+E=['Water collection, treatment and supply','Sewerage, waste management, remediation activities']
+F=['Construction']
+G=['Wholesale and retail trade and repair of motor vehicles and motorcycles','Wholesale trade, except of motor vehicles and motorcycles','Retail trade, except of motor vehicles and motorcycles']
+H=['Land transport and transport via pipelines','Water transport','Air transport']
+H_M_N=['Warehousing and support activities for transportation','Postal and courier activities','Legal and accounting activities; activities of head offices; management consultancy activities','Architectural and engineering activities; technical testing and analysis','Scientific research and development','Advertising and market research','Other professional, scientific and technical activities; veterinary activities','Rental and leasing activities','Employment activities','Travel agency, tour operator and other reservation service and related activities','Security and investigation, service and landscape, office administrative and support activities']
+I=['Accommodation and food service activities']
+J_R_S=['Publishing activities','Motion picture, video, television programme production; programming and broadcasting activities','Telecommunications','Computer programming, consultancy, and information service activities','Creative, arts and entertainment activities; libraries, archives, museums and other cultural activities; gambling and betting activities','Sports activities and amusement and recreation activities','Activities of membership organisations','Repair of computers and personal and household goods','Other personal service activities']
+K=['Financial service activities, except insurance and pension funding','Insurance, reinsurance and pension funding, except compulsory social security','Activities auxiliary to financial services and insurance activities']
+L=['Real estate activities']
+O=['Public administration and defence; compulsory social security']
+P=['Education']
+Q=['Human health activities','Residential care activities and social work activities without accommodation']
+T_U=['Activities of households as employers; undifferentiated goods- and services-producing activities of households for own use']
+agg_ind={'A':A,'B':B,'C':C,'C19':C19,'C29':C29,'D':D,'E':E,'F':F,'G':G,'H':H,'H_M_N':H_M_N,'I':I,'J_R_S':J_R_S,'K':K,'L':L,'O':O,'P':P,'Q':Q,'T':T_U}
+
+E_sectors=['A','B','C19','D']
+E_sectors_nonbio=[x for x in E_sectors if x not in ['A']]
+```
+
+```{python}
+supply.dropna(axis=0,how='all',inplace=True)
+supply.dropna(axis=1,how='any',inplace=True)
+supply.drop(labels=['Unnamed: 136'],axis=1,inplace=True)
+
+use.dropna(axis=0,how='all',inplace=True)
+use.dropna(axis=1,how='any',inplace=True)
+
+disagg_sectors=[x for x in supply.columns if x not in ['Total - all NACE activities','Changes in inventories and produced assets','Statistical discrepancy between supply and use of energy for total activities','Economic activities of the rest of the world', 'Environment','Energy flows over all activities','Activities of extraterritorial organisations and bodies','Total activities by households']]
+```
+
+```{python}
+supply_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products_PEFA)
+for m in E_products_PEFA:
+    for i in agg_ind.keys():
+        supply_sec_agg.loc[i,m]=supply.loc[m,agg_ind[i]].sum()
+
+use_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products_PEFA)
+for m in E_products_PEFA:
+    for i in agg_ind.keys():
+        use_sec_agg.loc[i,m]=use.loc[m,agg_ind[i]].sum()
+```
+
+```{python}
+# Energy product aggregation to match E balance
+E_products=['Hard coal','Brown coal and peat','Derived gases (= manufactured gases excl. biogas)','Secondary coal products (coke, coal tar, patent fuel, BKB and peat products)','Crude oil, NGL, and other hydrocarbons (excl. bio)','Natural gas (without bio)', 'Motor spirit (without bio)','Kerosenes and jet fuels (without bio)', 'Naphtha', 'Gas oil and diesel oil', 'Residual fuel oil','Refinery gas, ethane and LPG','Other petroleum products incl. additives/oxygenates and refinery feedstocks','Nuclear fuel', 'Wood, wood waste and other solid biomass, charcoal','Liquid biofuels', 'Biogas', 'Electrical energy', 'Heat']
+gas_diesel=['Transport diesel (without bio)','Heating and other gasoil (without bio)']
+E_products_dict={}
+for i in E_products:
+    E_products_dict[i]=[i]
+E_products_dict['Gas oil and diesel oil']=gas_diesel
+```
+
+```{python}
+# Energy Products aggregation 
+E_prod_coal=['Hard coal', 'Brown coal and peat', 'Secondary coal products (coke, coal tar, patent fuel, BKB and peat products)','Derived gases (= manufactured gases excl. biogas)']
+E_prod_gas_natural=['Natural gas (without bio)']
+#E_prod_oil=[ 'Crude oil, NGL, and other hydrocarbons (excl. bio)','Motor spirit (without bio)','Kerosenes and jet fuels (without bio)','Naphtha', 'Transport diesel (without bio)', 'Heating and other gasoil (without bio)',  'Residual fuel oil', 'Refinery gas, ethane and LPG','Other petroleum products incl. additives/oxygenates and refinery feedstocks',]
+# aggregation with E balance match
+E_prod_oil=[ 'Crude oil, NGL, and other hydrocarbons (excl. bio)','Motor spirit (without bio)','Kerosenes and jet fuels (without bio)','Naphtha', 'Gas oil and diesel oil',  'Residual fuel oil', 'Refinery gas, ethane and LPG','Other petroleum products incl. additives/oxygenates and refinery feedstocks',]
+E_prod_nuc=['Nuclear fuel']
+E_prod_biofuels=['Wood, wood waste and other solid biomass, charcoal', 'Liquid biofuels', 'Biogas']
+E_prod_elec=['Electrical energy']
+E_prod_heat=['Heat']
+
+E_products_agg={'Coal and coal products':E_prod_coal,'Natural gas':E_prod_gas_natural,'Oil and petroleum products':E_prod_oil,'Nuclear fuel':E_prod_nuc, 'Biofuels':E_prod_biofuels,'Electricity':E_prod_elec,'Heat':E_prod_heat}
+
+E_agg=list(E_products_agg)
+E_agg_no_nuclear=[x for x in E_agg if x not in ['Nuclear fuel']]
+```
+
+```{python}
+supply_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products)
+for m in E_products:
+    for i in agg_ind.keys():
+# If only applies to E balance aggregation
+        if m in ['Gas oil and diesel oil']:
+            supply_sec_agg.loc[i,m]=supply.loc[E_products_dict[m],agg_ind[i]].sum().sum()
+        else:
+            supply_sec_agg.loc[i,m]=supply.loc[m,agg_ind[i]].sum()
+
+use_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products)
+for m in E_products:
+    for i in agg_ind.keys():
+# If only applies to E balance aggregation
+        if m in ['Gas oil and diesel oil']:
+            use_sec_agg.loc[i,m]=use.loc[E_products_dict[m],agg_ind[i]].sum().sum()
+        else:
+            use_sec_agg.loc[i,m]=use.loc[m,agg_ind[i]].sum()
+```
+
+```{python}
+supply_sec_agg_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_agg)
+for m in E_agg:
+    supply_sec_agg_E_agg[m]=supply_sec_agg[E_products_agg[m]].sum(axis=1)
+
+use_sec_agg_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_agg)
+for m in E_agg:
+    use_sec_agg_E_agg[m]=use_sec_agg[E_products_agg[m]].sum(axis=1)
+```
+
+```{python}
+# with E balance aggregation
+oth_use=pd.DataFrame(index=E_products,columns=['Total activities by households','Changes in inventories and produced assets','Statistical discrepancy between supply and use of energy for total activities','Economic activities of the rest of the world'])
+for i in E_products:
+    if i in ['Gas oil and diesel oil']:
+        oth_use.loc[i]=use.loc[E_products_dict[i],['Total activities by households','Changes in inventories and produced assets','Statistical discrepancy between supply and use of energy for total activities','Economic activities of the rest of the world']].sum()
+    else:
+        oth_use.loc[i]=use.loc[i,['Total activities by households','Changes in inventories and produced assets','Statistical discrepancy between supply and use of energy for total activities','Economic activities of the rest of the world']]
+findem=oth_use[['Total activities by households','Economic activities of the rest of the world']]
+```
+
+### Net supply, use and own use
+
+```{python}
+# only for autoproduction
+own_use_disagg=pd.DataFrame(0,index=disagg_sectors,columns=E_products)
+for e in ['Electrical energy','Heat']:
+# with E balance aggregation
+    own_use_disagg[e]=np.minimum(supply.loc[e,disagg_sectors],use.loc[e,disagg_sectors])
+
+# for all products
+own_use=pd.DataFrame(index=agg_ind.keys(),columns=E_products)
+for m in E_products:
+    for i in agg_ind.keys():
+        own_use.loc[i,m]=own_use_disagg.loc[agg_ind[i],m].sum()
+```
+
+```{python}
+net_supply_sec_agg=supply_sec_agg-own_use
+
+net_supply_sec_agg_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_agg)
+for m in E_agg:
+    net_supply_sec_agg_E_agg[m]=net_supply_sec_agg[E_products_agg[m]].sum(axis=1)
+```
+
+```{python}
+net_use_sec_agg=use_sec_agg-own_use
+
+net_use_sec_agg_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_agg)
+for m in E_agg:
+    net_use_sec_agg_E_agg[m]=net_use_sec_agg[E_products_agg[m]].sum(axis=1)
+```
+
+#### Split D
+
+```{python}
+D_sectors=['D1','D2','D3']
+```
+
+##### Load Energy balance
+
+```{python}
+hard_coal_SIEC=['Anthracite','Coking coal','Other bituminous coal']
+brown_coal_SIEC=['Sub-bituminous coal', 'Lignite', 'Peat']
+# Basic oxygen steel furnace gas not in E balance, but in PEFA
+derived_gas_SIEC=['Coke oven gas','Gas works gas','Blast furnace gas']
+sec_coal_prod_SIEC=['Coke oven coke', 'Gas coke', 'Coal tar', 'Brown coal briquettes', 'Patent fuel', 'Peat products']
+crude_oil_SIEC=['Oil shale and oil sands', 'Crude oil', 'Natural gas liquids', 'Other hydrocarbons']
+nat_gas_SIEC=['Natural gas']
+motor_spirit_SIEC=['Motor gasoline (excluding biofuel portion)', 'Aviation gasoline']
+kerosene_SIEC=['Gasoline-type jet fuel', 'Kerosene-type jet fuel (excluding biofuel portion)', 'Other kerosene']
+naphta_SIEC=['Naphtha']
+# This is also heating and other gasoil in PEFA, i.e. we have to merge these in E products
+diesel_SIEC=['Gas oil and diesel oil (excluding biofuel portion)']
+residual_SIEC=['Fuel oil']
+refinery_gas_SIEC=['Refinery gas', 'Ethane', 'Liquefied petroleum gases']
+other_petro_SIEC=['White spirit and special boiling point industrial spirits', 'Lubricants', 'Paraffin waxes', 'Petroleum coke', 'Bitumen', 'Other oil products n.e.c.', 'Refinery feedstocks', 'Additives and oxygenates (excluding biofuel portion)']
+# note the SIEC also includes animal waste, PEFA does not
+solid_bio_SIEC=['Primary solid biofuels', 'Charcoal']
+liquid_bio_SIEC=['Pure biogasoline','Blended biogasoline','Pure biodiesels', 'Blended biodiesels', 'Pure bio jet kerosene', 'Blended bio jet kerosene', 'Other liquid biofuels']
+# Biogases from thermal processes inclded in E balance but not in PEFA
+gas_bio_SIEC=['Biogases']
+elec_SIEC=['Electricity']
+heat_SIEC=['Heat']
+
+E_products_SIEC={'Hard coal':hard_coal_SIEC,'Brown coal and peat':brown_coal_SIEC, 'Derived gases (= manufactured gases excl. biogas)':derived_gas_SIEC,'Secondary coal products (coke, coal tar, patent fuel, BKB and peat products)':sec_coal_prod_SIEC, 'Crude oil, NGL, and other hydrocarbons (excl. bio)':crude_oil_SIEC, 'Natural gas (without bio)':nat_gas_SIEC,  'Motor spirit (without bio)':motor_spirit_SIEC,'Kerosenes and jet fuels (without bio)':kerosene_SIEC,'Naphtha':naphta_SIEC,'Gas oil and diesel oil':diesel_SIEC,'Residual fuel oil':residual_SIEC,'Refinery gas, ethane and LPG':refinery_gas_SIEC,'Other petroleum products incl. additives/oxygenates and refinery feedstocks':other_petro_SIEC,'Nuclear fuel':[],'Wood, wood waste and other solid biomass, charcoal':solid_bio_SIEC,'Liquid biofuels':liquid_bio_SIEC,'Biogas':gas_bio_SIEC,'Electrical energy':elec_SIEC,'Heat':heat_SIEC}
+
+```
+
+```{python}
+SIEC_products=[]
+for sublist in list(E_products_SIEC.values()):
+    for item in sublist:
+        SIEC_products.append(item)
+```
+
+```{python}
+E_balance=pd.read_excel('source-data/pisa-team-files/E_balance_disagg_transf_input.xlsx', header=[0], index_col=[0], sheet_name='Sheet 1',usecols=[0]+list(range(1,141,2)),skiprows=9,nrows=4)
+E_balance.drop(axis=0,labels='NRG_BAL (Labels)',inplace=True)
+```
+
+```{python}
+E_balance_E_prod=pd.DataFrame(0,index=E_balance.index,columns=E_products_SIEC.keys())
+for i in E_products_SIEC.keys():
+    E_balance_E_prod[i]=E_balance[E_products_SIEC[i]].sum(axis=1)
+E_balance_E_prod['Electrical energy']=0
+```
+
+```{python}
+E_balace_PEFA_frac=E_balance_E_prod.sum().div(use_sec_agg.loc['D'].where(use_sec_agg.loc['D']!=0,np.nan))
+```
+
+```{python}
+D1_share_E_balance=(E_balance_E_prod.sum()-E_balance_E_prod.loc['Transformation input - electricity and heat generation - main activity producer heat only - energy use'])/E_balance_E_prod.sum()
+D1_share_E_balance.fillna(value=0,inplace=True)
+tot_E_balance=E_balance_E_prod.sum()
+```
+
+```{python}
+# Electricity:
+# Eurostat Energy Balance:
+# Pumped storage:, Final energy use energy and electricity sector:
+pumped_storage=16030.8
+elec_use=40742.719
+# Heat: Geothermal heat:
+geo_elec=E_balance['Geothermal']['Transformation input - electricity and heat generation - main activity producer electricity only - energy use']
+```
+
+```{python}
+# Supply: 
+# Transformation output:
+# Electricity D1 (electricity only and CHP): 988708
+# Heat D1 (CHP): 92607
+# Heat D3 (Heat only): 2836
+e_balance_supply=pd.DataFrame(0,index=['D1','D3'],columns=['Electrical energy','Heat'])
+e_balance_supply.loc['D1','Electrical energy']=988708
+e_balance_supply.loc['D1','Heat']=92607
+e_balance_supply.loc['D3','Heat']=2836
+e_balance_D1_heat_supply_share=e_balance_supply.loc['D1','Heat']/e_balance_supply['Heat'].sum()
+```
+
+##### Use
+
+```{python}
+# Load x domestic
+x_dom=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/WIOD_IT.xlsx', sheet_name='x dom new',header=[0],index_col=[0]).squeeze()
+x_dom_D_frac=x_dom[D_sectors]/x_dom[D_sectors].sum()
+x_dom_D1D3_frac=x_dom[['D1','D3']]/x_dom[['D1','D3']].sum()
+```
+
+```{python}
+use_D=pd.DataFrame(0,index=D_sectors, columns=E_products)
+for e in [x for x in E_products if x not in ['Electrical energy','Heat']]:
+    if E_balace_PEFA_frac[e]>1:
+        use_D.loc['D1',e]=use_sec_agg.loc['D',e]*D1_share_E_balance[e]
+        use_D.loc['D3',e]=use_sec_agg.loc['D',e]*(1-D1_share_E_balance[e])
+    elif E_balace_PEFA_frac[e]<1:
+        use_D.loc['D1',e]=tot_E_balance[e]*D1_share_E_balance[e]
+        use_D.loc['D3',e]=tot_E_balance[e]*(1-D1_share_E_balance[e])
+        for i in D_sectors:
+            use_D.loc[i,e]+=(use_sec_agg.loc['D',e]-tot_E_balance[e])*x_dom_D_frac[i]
+# Electricity
+for e in ['Electrical energy']:
+    use_D.loc['D1',e]+=pumped_storage
+    for i in ['D1','D3']:
+        use_D.loc[i,e]+=elec_use*x_dom_D1D3_frac[i]
+    for i in D_sectors:
+        use_D.loc[i,e]+=(use_sec_agg.loc['D',e]-pumped_storage-elec_use)*x_dom_D_frac[i]
+## Heat
+for e in ['Heat']:
+    use_D.loc['D1',e]+=geo_elec
+    for i in D_sectors:
+        use_D.loc[i,e]+=(use_sec_agg.loc['D',e]-geo_elec)*x_dom_D_frac[i]
+```
+
+##### Supply
+
+```{python}
+# For D2 and D3 their GROSS supply is given by gases supplied by D (own use D) and heat produced only by heat only main producers (from energy balance: D3_supply['Heat']=2836)
+supply_D=pd.DataFrame(0,index=D_sectors, columns=E_products)
+for e in ['Derived gases (= manufactured gases excl. biogas)','Natural gas (without bio)','Biogas']:
+    supply_D.loc['D2',e]=supply_sec_agg.loc['D'][e]
+# Electricity
+supply_D.loc['D1','Electrical energy']=supply_sec_agg.loc['D','Electrical energy']
+# Heat
+supply_D.loc['D1','Heat']+=geo_elec
+supply_D.loc['D1','Heat']+=(supply_sec_agg.loc['D','Heat']-geo_elec)*e_balance_D1_heat_supply_share
+supply_D.loc['D3','Heat']+=(supply_sec_agg.loc['D','Heat']-geo_elec)*(1-e_balance_D1_heat_supply_share)
+```
+
+##### Net supply
+
+```{python}
+net_supply_D=supply_D-use_D
+# For summing over the products, we should remove negative values
+net_supply_D.clip(lower=0,inplace=True)
+
+net_supply_D_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_agg)
+for m in E_agg:
+    net_supply_D_E_agg[m]=net_supply_D[E_products_agg[m]].sum(axis=1)
+```
+
+```{python}
+net_use_D=use_D-supply_D
+net_use_D.clip(lower=0,inplace=True)
+
+net_use_D_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_agg)
+for m in E_agg:
+    net_use_D_E_agg[m]=net_use_D[E_products_agg[m]].sum(axis=1)
+```
+
+```{python}
+own_use_D=supply_D-net_supply_D
+# remove non autoproduction own use
+for e in [x for x in E_products if x not in ['Electrical energy','Heat']]:
+    own_use_D[e]=0
+```
+
+##### Merge
+
+```{python}
+# Load locomotion to get index order
+Z=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/WIOD_IT.xlsx', sheet_name='Z WIOD Loco hybrid',header=[0],index_col=[0,1],skiprows=2)
+Z.columns=Z.index
+Z_dom=Z.loc['DOM','DOM']
+sectors_D=Z_dom.index
+```
+
+```{python}
+net_use_sec_agg=pd.concat([net_use_sec_agg,net_use_D],axis=0)
+net_use_sec_agg.drop('D',axis=0,inplace=True)
+net_use_sec_agg=net_use_sec_agg.reindex(sectors_D)
+
+net_supply_sec_agg=pd.concat([net_supply_sec_agg,net_supply_D],axis=0)
+net_supply_sec_agg.drop('D',axis=0,inplace=True)
+net_supply_sec_agg=net_supply_sec_agg.reindex(sectors_D)
+
+own_use=pd.concat([own_use,own_use_D],axis=0)
+own_use.drop('D',axis=0,inplace=True)
+own_use=own_use.reindex(sectors_D)
+```
+
+##### Shares
+
+```{python}
+supply_shares=supply_sec_agg.div(supply_sec_agg.sum().where(supply_sec_agg.sum() != 0, np.nan))
+net_supply_shares=net_supply_sec_agg.div(net_supply_sec_agg.sum().where(net_supply_sec_agg.sum() != 0, np.nan))
+net_supply_shares.fillna(value=0,inplace=True)
+```
+
+```{python}
+use_shares=use_sec_agg.div(use_sec_agg.sum().where(use_sec_agg.sum() != 0, np.nan))
+net_use_shares=net_use_sec_agg.div(net_use_sec_agg.sum().where(net_use_sec_agg.sum() != 0, np.nan))
+net_use_shares.fillna(value=0,inplace=True)
+```
+
+### Trade
+
+```{python}
+# We assume that the import share of supply by energy product is the same, no matter if the product is used in any industry, by households, exports or inventories
+# However, we assume that each industry first consumes their own produced goods before importing them, thus own use is calculated before accounting for the import share and the share is adjusted acordingly
+```
+
+```{python}
+# with E balance aggregation
+supply_Eprd=pd.DataFrame(index=E_products, columns=supply.columns)
+for i in E_products:
+    if i in ['Gas oil and diesel oil']:
+        supply_Eprd.loc[i]=supply.loc[E_products_dict[i]].sum()
+    else:
+        supply_Eprd.loc[i]=supply.loc[i]
+supply_import_share=supply_Eprd['Economic activities of the rest of the world'].div((supply_Eprd['Energy flows over all activities']-own_use.sum()).where((supply_Eprd['Energy flows over all activities']-own_use.sum()) != 0, np.nan))
+supply_import_share.fillna(value=0,inplace=True)
+```
+
+### Check consistency
+
+```{python}
+dom_Z_demand_net=(net_use_sec_agg.sum())*(1-supply_import_share)
+dom_Z_supply_net=dom_Z_demand_net
+dom_Z_demand=dom_Z_demand_net+own_use.sum()
+dom_Z_supply=dom_Z_demand
+imp_Z_supply=use_sec_agg.sum()-dom_Z_supply
+#
+# with E balance aggregation
+use_Eprd=pd.DataFrame(index=E_products, columns=use.columns)
+for i in E_products:
+    if i in ['Gas oil and diesel oil']:
+        use_Eprd.loc[i]=use.loc[E_products_dict[i]].sum()
+    else:
+        use_Eprd.loc[i]=use.loc[i]
+#
+hh_E_use=use_Eprd['Total activities by households']
+dom_hh_findem=hh_E_use*(1-supply_import_share)
+imp_hh_findem=hh_E_use-dom_hh_findem
+##
+exp_E_use=use_Eprd['Economic activities of the rest of the world']
+dom_exp_findem=exp_E_use*(1-supply_import_share)
+imp_exp_findem=exp_E_use-dom_exp_findem
+##
+other_E_use=use_Eprd[['Changes in inventories and produced assets','Statistical discrepancy between supply and use of energy for total activities']].sum(axis=1)
+dom_other_findem=other_E_use*(1-supply_import_share)
+imp_other_findem=other_E_use-dom_other_findem
+#
+imports=use_sec_agg.sum()+oth_use.sum(axis=1)-supply_sec_agg.sum()
+#
+## CHECK consistency
+#tot_dom_demand=dom_other_findem+dom_hh_findem+dom_exp_findem+dom_Z_demand
+#tot_imports=imp_Z_supply+imp_hh_findem+imp_exp_findem+imp_other_findem
+#
+#(tot_imports-imports).max(),(tot_dom_demand-supply_sec_agg.sum()).max()
+
+```
+
+## Monetary E Z
+
+```{python}
+# LOCO sectors
+secA=['CROPS','ANIMALS','FORESTRY','FISHNG']
+secB=['MINING_COAL','EXTRACTION_OIL','EXTRACTION_GAS','EXTRACTION_OTHER_GAS','MINING_URANIUM_THORIUM','MINING_IRON','MINING_COPPER','MINING_NICKEL','MINING_ALUMINIUM','MINING_PRECIOUS_METALS','MINING_LEAD_ZINC_TIN','MINING_OTHER_METALS','MINING_NON_METALS']
+secC=['MANUFACTURE_FOOD','MANUFACTURE_WOOD','MANUFACTURE_CHEMICAL','MANUFACTURE_PLASTIC','MANUFACTURE_OTHER_NON_METAL','MANUFACTURE_BASIC_METALS','MANUFACTURE_METAL_PRODUCTS','MANUFACTURE_ELECTRONICS','MANUFACTURE_ELECTRICAL_EQUIPMENT','MANUFACTURE_MACHINERY','MANUFACTURE_OTHER']
+secC19=['COKE','REFINING']
+secC29=['MANUFACTURE_VEHICLES']
+secD1=['ELECTRICITY_COAL','ELECTRICITY_GAS','ELECTRICITY_NUCLEAR','ELECTRICITY_HYDRO','ELECTRICITY_WIND','ELECTRICITY_OIL','ELECTRICITY_SOLAR_PV','ELECTRICITY_SOLAR_THERMAL','ELECTRICITY_OTHER','DISTRIBUTION_ELECTRICITY']
+secD2=['DISTRIBUTION_GAS']
+secD3=['STEAM_HOT_WATER']
+secE=['WASTE_MANAGEMENT']
+secF=['CONSTRUCTION']
+secG=['TRADE_REPAIR_VEHICLES']
+secH51=['TRANSPORT_RAIL','TRANSPORT_OTHER_LAND','TRANSPORT_PIPELINE','TRANSPORT_SEA','TRANSPORT_INLAND_WATER','TRANSPORT_AIR']
+secI=['ACCOMMODATION']
+secJRS=['TELECOMMUNICATIONS','ENTERTAIMENT']
+secK=['FINANCE']
+secL=['REAL_ESTATE']
+secH53MN=['OTHER_SERVICES']
+secO=['PUBLIC_ADMINISTRATION']
+secP=['EDUCATION']
+secQ=['HEALTH']
+secT=['PRIVATE_HOUSEHOLDS']
+
+loco_agg_sector={'A':secA,'B':secB,'C':secC,'C19':secC19, 'C29':secC29,'D1':secD1,'D2':secD2,'D3':secD3,'E':secE,'F':secF,'G':secG,'H':secH51,'I':secI,'J_R_S':secJRS,'K':secK,'L':secL,'H_M_N':secH53MN,'O':secO,'P':secP,'Q':secQ,'T':secT}
+```
+
+```{python}
+Z=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/WIOD_IT.xlsx', sheet_name='Z WIOD Loco hybrid',header=[0],index_col=[0,1],skiprows=2)
+Z.columns=Z.index
+Z_dom=Z.loc['DOM','DOM']
+Z_imp=Z.loc['OTH','DOM']
+Z_exp=Z.loc['DOM','OTH']
+sectors_D=Z_dom.index
+```
+
+```{python}
+findem=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/WIOD_IT.xlsx', sheet_name='findem wiod-loco',header=[0],index_col=[0,1])
+findem_dom=findem.loc['dom']
+findem_exp=findem.loc['exp'][['H','G','GFCF','Z']].sum(axis=1)
+findem_imp=findem.loc['imp']
+```
+
+```{python}
+full_E_secs=['C19','D1']
+oth_E_secs=['A','B']
+bio_secs=['A']
+E_sectors=full_E_secs+oth_E_secs
+E_sectors.sort()
+
+sectors_D=Z_dom.index
+
+non_E_sectors=[x for x in sectors_D if x not in E_sectors]
+```
+
+```{python}
+# energy intensity of output: D2 and D3 no energy sectors
+# net_supply_sec_agg.loc['B'].sum()/x_dom.loc['B'],net_supply_sec_agg.loc['D2'].sum()/x_dom.loc['D2']
+# net_supply_sec_agg.loc['D3'].sum()/x_dom.loc['D3'],net_supply_sec_agg.loc['D1'].sum()/x_dom.loc['D1']
+# net_supply_sec_agg.loc['C19'].sum()/x_dom.loc['C19'],net_supply_sec_agg.loc['A'].sum()/x_dom.loc['A']
+```
+
+### Domestic M Z E
+
+#### Full E sectors
+
+##### Z
+
+```{python}
+M_Z_E_dom=pd.DataFrame(0,index=sectors_D,columns=sectors_D)
+for i in full_E_secs:
+    M_Z_E_dom.loc[i]=Z_dom.loc[i]
+```
+
+##### Findem
+
+```{python}
+FD_Z_E_dom=pd.DataFrame(0,index=sectors_D,columns=['H','EX'])
+for i in full_E_secs:
+    FD_Z_E_dom.loc[i,'H']=findem_dom.loc[i,'H']
+    FD_Z_E_dom.loc[i,'EX']=findem_exp.loc[i]
+```
+
+#### Mining
+
+##### Z
+
+```{python}
+# For mining get the energy share from Locomotion data
+secB=['MINING_COAL','EXTRACTION_OIL','EXTRACTION_GAS','EXTRACTION_OTHER_GAS','MINING_URANIUM_THORIUM','MINING_IRON','MINING_COPPER','MINING_NICKEL','MINING_ALUMINIUM','MINING_PRECIOUS_METALS','MINING_LEAD_ZINC_TIN','MINING_OTHER_METALS','MINING_NON_METALS']
+secB_E=['MINING_COAL','EXTRACTION_OIL','EXTRACTION_GAS','EXTRACTION_OTHER_GAS','MINING_URANIUM_THORIUM']
+
+loco_Z=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/Locomotion_IT.xlsx',sheet_name='Z',header=[0,1],index_col=[0,1])
+dom=['ITA']
+loco_regions=loco_Z.index.get_level_values(level=0).unique()
+imp_regions=[x for x in loco_regions if x not in dom]
+```
+
+```{python}
+B_Z_s=loco_Z.loc[dom,dom].droplevel(level=0,axis=0).loc[secB].droplevel(level=0,axis=1)
+B_Z_s_sec=pd.DataFrame(index=secB,columns=sectors_D)
+for i in sectors_D:
+    B_Z_s_sec[i]=B_Z_s[loco_agg_sector[i]].sum(axis=1)
+
+Z_B_E_share=B_Z_s_sec.loc[secB_E].sum()/B_Z_s_sec.sum()
+```
+
+```{python}
+# Add to M Z E dom
+M_Z_E_dom.loc['B']=Z_dom.loc['B']*Z_B_E_share
+```
+
+##### Findem
+
+```{python}
+loco_findem=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/Locomotion_IT.xlsx',sheet_name='findem',header=[0],index_col=[0,1])
+# HH findem
+fd_dom_h_B_E_share=loco_findem.loc['dom','H'].loc[secB_E].sum()/loco_findem.loc['dom','H'].loc[secB].sum()
+
+# EXP
+# remove inventories
+B_exp=loco_findem.loc['exp',['H','G','GFCF']].loc[secB].sum(axis=1)+loco_Z.loc[dom,imp_regions].droplevel(level=0,axis=0).loc[secB].sum(axis=1)
+exp_dom_B_E_share=B_exp.loc[secB_E].sum()/B_exp.sum()
+```
+
+```{python}
+# Add to FD Z E
+FD_Z_E_dom.loc['B','H']=findem_dom.loc['B','H']*fd_dom_h_B_E_share
+FD_Z_E_dom.loc['B','EX']=findem_exp.loc['B']*exp_dom_B_E_share
+```
+
+#### Biofuels
+
+##### Z
+
+```{python}
+# Domestic use
+net_use_sec_agg_dom=pd.DataFrame(index=sectors_D,columns=E_products)
+for e in E_products:
+    net_use_sec_agg_dom[e]=net_use_sec_agg[e]*(1-supply_import_share[e])
+```
+
+```{python}
+# We assume that where the energy flow makes up the largest proportion of the monetary flow, that to this sector the trade only reflects energy
+only_E_buyer=pd.DataFrame(0,index=['A','E'],columns=['out']).squeeze()
+only_E_buyer['A']=(net_use_sec_agg_dom['Wood, wood waste and other solid biomass, charcoal']*net_supply_shares.loc['A','Wood, wood waste and other solid biomass, charcoal']).div(Z_dom.loc['A'].where(Z_dom.loc['A']!=0,np.nan)).astype(float).idxmax(skipna=True)
+```
+
+```{python}
+impl_price_dom_A=Z_dom.loc['A',only_E_buyer['A']]/(net_use_sec_agg_dom.loc[only_E_buyer['A'],'Wood, wood waste and other solid biomass, charcoal']*net_supply_shares.loc['A','Wood, wood waste and other solid biomass, charcoal'])
+```
+
+```{python}
+M_Z_E_dom.loc['A']=(net_use_sec_agg_dom['Wood, wood waste and other solid biomass, charcoal']*net_supply_shares.loc['A','Wood, wood waste and other solid biomass, charcoal'])*impl_price_dom_A
+```
+
+##### Findem
+
+```{python}
+# here we assume that each product has the same sale structure, i.e. is spread across all demand categories the same way no matter its sector of origin
+# this means that the supply from each industry by good is determined by its net supply share
+# we conduct this only for final demand as for Z we link it to monetary flows (see below) 
+
+findem_sec_agg=pd.DataFrame(index=sectors_D,columns=pd.MultiIndex.from_product([['H','EX'],E_products]))
+for i in sectors_D:
+    for e in E_products:
+        findem_sec_agg.loc[i,('H',e)]=dom_hh_findem[e]*net_supply_shares.loc[i,e]
+        findem_sec_agg.loc[i,('EX',e)]=dom_exp_findem[e]*net_supply_shares.loc[i,e]
+```
+
+```{python}
+# we use the implicit price for solid for final demand
+FD_Z_E_dom.loc['A','H']=(findem_sec_agg.loc['A',('H','Wood, wood waste and other solid biomass, charcoal')]*net_supply_shares.loc['A','Wood, wood waste and other solid biomass, charcoal'])*impl_price_dom_A
+FD_Z_E_dom.loc['A','EX']=(findem_sec_agg.loc['A',('EX','Wood, wood waste and other solid biomass, charcoal')]*net_supply_shares.loc['A','Wood, wood waste and other solid biomass, charcoal'])*impl_price_dom_A
+```
+
+##### Autoproduction non_E_sectors
+
+```{python}
+########################################
+########################################
+# potential issue with RAS on MEZ, but RAS not applied to energy sources modelled at this point
+# RAS_E_products=['Liquid biofuels', 'Biogas']
+########################################
+########################################
+```
+
+```{python}
+# for simplicity only consider energy provided by the designated energy sectors and hence omit autoproduction by non-energy sectors
+# removing autoproduction leads initial emissions in model to fall from 389.488 to 384.136
+
+# potential issue with RAS on MEZ, but RAS not applied to energy sources modelled at this point
+
+# for i in non_E_sectors:
+#     print(M_Z_E_dom.loc[i,i])
+
+# for i in non_E_sectors:
+#         M_Z_E_dom.loc[i,i]=Z_dom.loc[i,i]
+```
+
+### Imports M Z E
+
+#### Full E sectors
+
+##### Z
+
+```{python}
+M_Z_E_imp=pd.DataFrame(0,index=sectors_D,columns=sectors_D)
+for i in full_E_secs:
+    M_Z_E_imp.loc[i]=Z_imp.loc[i]
+```
+
+##### Findem
+
+```{python}
+# Note that re-exports are not modelled in Eurogreen (i.e. imports that are exported again)
+# Thus from here on we ignore FD imp for exports
+```
+
+```{python}
+FD_Z_E_imp=pd.DataFrame(0,index=sectors_D,columns=['H']).squeeze()
+for i in full_E_secs:
+    FD_Z_E_imp.loc[i]=findem_imp.loc[i,'H']
+```
+
+#### Mining
+
+##### Z
+
+```{python}
+# For mining get the energy share from Locomotion data
+secB=['MINING_COAL','EXTRACTION_OIL','EXTRACTION_GAS','EXTRACTION_OTHER_GAS','MINING_URANIUM_THORIUM','MINING_IRON','MINING_COPPER','MINING_NICKEL','MINING_ALUMINIUM','MINING_PRECIOUS_METALS','MINING_LEAD_ZINC_TIN','MINING_OTHER_METALS','MINING_NON_METALS']
+secB_E=['MINING_COAL','EXTRACTION_OIL','EXTRACTION_GAS','EXTRACTION_OTHER_GAS','MINING_URANIUM_THORIUM']
+
+loco_Z=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/Locomotion_IT.xlsx',sheet_name='Z',header=[0,1],index_col=[0,1])
+dom=['ITA']
+loco_regions=loco_Z.index.get_level_values(level=0).unique()
+imp_regions=[x for x in loco_regions if x not in dom]
+```
+
+```{python}
+B_Z_imp_s=loco_Z.loc[imp_regions,dom].droplevel(level=0,axis=0).loc[secB].droplevel(level=0,axis=1).groupby(level=0,axis=0,sort=False).sum()
+B_Z_imp_s_sec=pd.DataFrame(index=secB,columns=sectors_D)
+for i in sectors_D:
+    B_Z_imp_s_sec[i]=B_Z_imp_s[loco_agg_sector[i]].sum(axis=1)
+
+Z_B_E_imp_share=B_Z_imp_s_sec.loc[secB_E].sum()/B_Z_imp_s_sec.sum()
+```
+
+```{python}
+# Add to M Z E dom
+M_Z_E_imp.loc['B']=Z_imp.loc['B']*Z_B_E_imp_share
+```
+
+##### Findem
+
+```{python}
+loco_findem=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/Locomotion_IT.xlsx',sheet_name='findem',header=[0],index_col=[0,1])
+# HH findem
+fd_imp_h_B_E_share=loco_findem.loc['imp','H'].loc[secB_E].sum()/loco_findem.loc['imp','H'].loc[secB].sum()
+```
+
+```{python}
+# Note that re-exports are not modelled in Eurogreen (i.e. imports that are exported again)
+# Thus from here on we ignore FD imp for exports
+
+# Add to FD Z E
+FD_Z_E_imp.loc['B']=findem_imp.loc['B','H']*fd_imp_h_B_E_share
+```
+
+#### Biofuels
+
+##### Z
+
+```{python}
+# Domestic use
+net_use_sec_agg_imp=pd.DataFrame(index=sectors_D,columns=E_products)
+for e in E_products:
+    net_use_sec_agg_imp[e]=net_use_sec_agg[e]*supply_import_share[e]
+```
+
+```{python}
+# We assume that where the energy flow makes up the largest proportion of the monetary flow, that to this sector the trade only reflects energy
+only_E_buyer_imp=net_use_sec_agg_imp['Wood, wood waste and other solid biomass, charcoal'].div(Z_imp.loc['A'].where(Z_imp.loc['A']!=0,np.nan)).astype(float).idxmax(skipna=True)
+```
+
+```{python}
+# we can use domestic net supply share as we assume it to be the same as the imported one except for brown coal
+impl_price_imp=Z_imp.loc['A',only_E_buyer['A']]/(net_use_sec_agg_imp.loc[only_E_buyer['A'],'Wood, wood waste and other solid biomass, charcoal']*net_supply_shares.loc['A','Wood, wood waste and other solid biomass, charcoal'])
+```
+
+```{python}
+M_Z_E_imp.loc['A']=(net_use_sec_agg_imp['Wood, wood waste and other solid biomass, charcoal']*net_supply_shares.loc['A','Wood, wood waste and other solid biomass, charcoal'])*impl_price_imp
+```
+
+##### Findem
+
+```{python}
+# Sectoral supply
+
+# We do not have any information about the supplying importing industries, thus we assume the same sectoral supply structure as we find for domestic net supply without own use:
+imp_net_supply_shares=net_supply_shares.copy()
+for e in E_products:
+# As 'Brown coal and peat' is only imported, we do not have a domestic supply structure to base imported supply on. However, is is straightforward to assume that as hard coal, this is provided by sector 'B'.
+    if e =='Brown coal and peat':
+        imp_net_supply_shares[e]=0
+        imp_net_supply_shares.loc['B',e]=1
+    elif supply_import_share[e]==0:
+        imp_net_supply_shares[e]=0
+```
+
+```{python}
+# here we assume that each product has the same sale structure, i.e. is spread across all demand categories the same way no matter its sector of origin
+# this means that the supply from each industry by good is determined by its net supply share
+# we conduct this only for final demand as for Z we link it to monetary flows (see below) 
+
+findem_imp_sec_agg=pd.DataFrame(index=sectors_D,columns=pd.MultiIndex.from_product([['H','EX'],E_products]))
+for i in sectors_D:
+    for e in E_products:
+        findem_imp_sec_agg.loc[i,('H',e)]=imp_hh_findem[e]*imp_net_supply_shares.loc[i,e]
+        findem_imp_sec_agg.loc[i,('EX',e)]=imp_exp_findem[e]*imp_net_supply_shares.loc[i,e]
+```
+
+```{python}
+# Note that re-exports are not modelled in Eurogreen (i.e. imports that are exported again)
+# Thus from here on we ignore FD imp for exports
+# we use the implicit price for solid for final demand
+FD_Z_E_imp.loc['A']=(findem_imp_sec_agg.loc['A',('H','Wood, wood waste and other solid biomass, charcoal')]*net_supply_shares.loc['A','Wood, wood waste and other solid biomass, charcoal'])*impl_price_imp
+```
+
+## Domestic Z E
+
+##### Use
+
+```{python}
+industry_dom_net_E_demand=pd.DataFrame(index=sectors_D,columns=E_products)
+for i in sectors_D:
+    for m in E_products:
+        industry_dom_net_E_demand.loc[i,m]=net_use_shares.loc[i,m]*dom_Z_demand_net[m]
+```
+
+##### Supply
+
+```{python}
+industry_dom_net_E_supply=pd.DataFrame(index=sectors_D,columns=E_products)
+for i in sectors_D:
+    for m in E_products:
+        industry_dom_net_E_supply.loc[i,m]=net_supply_shares.loc[i,m]*dom_Z_supply_net[m]
+```
+
+### Domestic Z matrix by E product
+
+```{python}
+# For Biogas, remove the one from A as not modelled
+industry_dom_net_E_supply.loc['A','Biogas']=0
+```
+
+##### non-RAS IO structure
+
+```{python}
+Z_E_noown={}
+pot_RAS_E_products=[]
+for e in E_products:
+    Z_E_noown[e]=pd.DataFrame(0,index=sectors_D,columns=sectors_D)
+    if (industry_dom_net_E_demand[e]>0).sum()==1:
+        Z_E_noown[e].loc[industry_dom_net_E_supply[e].loc[industry_dom_net_E_supply[e]>0].index,industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e]>0].index]=industry_dom_net_E_supply[e].loc[industry_dom_net_E_supply[e]>0].values
+    elif (industry_dom_net_E_supply[e]>0).sum()==1:
+        Z_E_noown[e].loc[industry_dom_net_E_supply[e].loc[industry_dom_net_E_supply[e]>0].index,industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e]>0].index]=industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e]>0].values
+    elif all(industry_dom_net_E_supply[e]==0):
+        Z_E_noown[e]=pd.DataFrame(0,index=sectors_D,columns=sectors_D)
+    else:
+        pot_RAS_E_products.append(e)
+```
+
+##### Non-RAS E sectors
+
+```{python}
+# looking only at our energy sectors can also render RAS unnecessary as only one supplier
+RAS_E_products=[]
+for e in pot_RAS_E_products:
+    if (industry_dom_net_E_supply[e][E_sectors]>0).sum()==1:
+        Z_E_noown[e].loc[industry_dom_net_E_supply.loc[E_sectors,e][industry_dom_net_E_supply.loc[E_sectors,e]>0].index,industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e]>0].index]=industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e]>0].values*net_supply_shares.loc[E_sectors,e].sum()
+    else:
+        RAS_E_products.append(e)
+```
+
+##### RAS IO structure
+
+```{python}
+def RAS(Z_old,colsums,rowsums):
+       Z=np.array(Z_old,dtype=float)
+       colsums=np.array(colsums,dtype=float)
+       rowsums=np.array(rowsums,dtype=float)
+       tol=1e-15
+       while True: 
+           to_multiply_rows=np.divide(rowsums, np.sum(Z,axis=1), out=np.zeros_like(rowsums), where=np.sum(Z,axis=1)!=0)
+           Z=(Z.T*to_multiply_rows).T
+           if np.allclose(np.sum(Z,axis=0),colsums, rtol=tol, atol=tol) and np.allclose(np.sum(Z,axis=1),rowsums, rtol=tol, atol=tol):
+               break
+           to_multiply_cols=np.divide(colsums, np.sum(Z,axis=0), out=np.zeros_like(colsums), where=np.sum(Z,axis=0)!=0)
+           Z=Z*to_multiply_cols
+           if np.allclose(np.sum(Z,axis=0),colsums, rtol=tol, atol=tol) and np.allclose(np.sum(Z,axis=1),rowsums, rtol=tol, atol=tol):
+               break
+       Z_E=pd.DataFrame(data=Z,index=Z_old.index,columns=Z_old.columns)
+       return Z_E
+```
+
+```{python}
+# For the RAS we use calcualted M E Z 
+M_Z_E_dom_RAS=M_Z_E_dom.copy()
+```
+
+```{python}
+for e in RAS_E_products:
+    relevant_Z=M_Z_E_dom_RAS.loc[industry_dom_net_E_supply.loc[E_sectors,e].loc[industry_dom_net_E_supply.loc[E_sectors,e]>0].index,industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e]>0].index]
+# for supplying industries we can only have our energy sectors
+    relevant_Z=relevant_Z.loc[relevant_Z.index.isin(E_sectors)]
+    rowsums=industry_dom_net_E_supply[e].loc[industry_dom_net_E_supply[e]>0]
+# again, for supplying industries we can only have our energy sectors
+    rowsums=rowsums[rowsums.index.isin(E_sectors)].values
+    colsums=industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e]>0].values
+# use has to be scaled by modelled supply share, again assuming the fixed product sale structure
+    colsums=colsums*net_supply_shares.loc[relevant_Z.index,e].sum()
+    Z_E_noown[e].loc[industry_dom_net_E_supply.loc[E_sectors,e].loc[industry_dom_net_E_supply.loc[E_sectors,e]>0].index,industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e]>0].index]=RAS(relevant_Z,colsums=colsums,rowsums=rowsums)
+```
+
+##### Add industry own energy use
+
+```{python}
+Z_E={}
+for e in E_products:
+    Z_E[e]=Z_E_noown[e].copy()
+    for i in sectors_D:
+        Z_E[e].loc[i,i]+=own_use.loc[i,e]
+```
+
+##### A_E domestic
+
+```{python}
+# Load x domestic
+x_dom=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/WIOD_IT.xlsx', sheet_name='x dom new',header=[0],index_col=[0]).squeeze()
+```
+
+```{python}
+x_dom_inv=1/x_dom
+x_dom_inv.fillna(value=0,inplace=True)
+x_dom_inv.replace([np.inf,-np.inf],0,inplace=True)
+x_dom_inv_diag=np.diag(x_dom_inv)
+```
+
+```{python}
+A_E={}
+for e in E_products:
+    A_E[e] = Z_E[e] @ x_dom_inv_diag
+    A_E[e].columns=A_E[e].index
+```
+
+### Tables and aggregation
+
+```{python}
+Z_E_table=pd.DataFrame(index=pd.MultiIndex.from_product([E_products,sectors_D]),columns=sectors_D)
+A_E_table=pd.DataFrame(index=pd.MultiIndex.from_product([E_products,sectors_D]),columns=sectors_D)
+for e in E_products:
+    Z_E_table.loc[e]=Z_E[e].values
+    A_E_table.loc[e]=A_E[e].values
+
+# Totals
+Z_E_total=Z_E_table.groupby(level=1,axis=0,sort=False).sum()
+A_E_total=A_E_table.groupby(level=1,axis=0,sort=False).sum()
+
+# Agg E products
+Z_E_table_agg_E=pd.DataFrame(index=pd.MultiIndex.from_product([E_products_agg.keys(),sectors_D]),columns=sectors_D)
+A_E_table_agg_E=pd.DataFrame(index=pd.MultiIndex.from_product([E_products_agg.keys(),sectors_D]),columns=sectors_D)
+for e in E_products_agg.keys():
+    Z_E_table_agg_E.loc[e]=Z_E_table.loc[E_products_agg[e]].groupby(level=1,axis=0,sort=False).sum().values
+    A_E_table_agg_E.loc[e]=A_E_table.loc[E_products_agg[e]].groupby(level=1,axis=0,sort=False).sum().values
+```
+
+```{python}
+# Cell specific source structure
+source_str=pd.DataFrame(index=pd.MultiIndex.from_product([E_products,sectors_D]),columns=sectors_D)
+for i in sectors_D:
+    for j in sectors_D:
+        for e in E_products:
+            if Z_E_total.loc[i,j]==0:
+                source_str.loc[(e,i),j]=0
+            else:
+                source_str.loc[(e,i),j]=Z_E_table.loc[(e,i),j]/Z_E_total.loc[i,j]
+
+
+source_str_agg_E=pd.DataFrame(index=pd.MultiIndex.from_product([E_products_agg.keys(),sectors_D]),columns=sectors_D)
+for e in E_products_agg.keys():
+    source_str_agg_E.loc[e]=source_str.loc[E_products_agg[e]].groupby(level=1,axis=0,sort=False).sum().values
+```
+
+### Exports
+
+```{python}
+with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/PEFA_IO_MEZ_RAS_clear_check_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
+    Z_E_table.to_excel(writer, sheet_name='Z E dom')
+    A_E_table.to_excel(writer, sheet_name='A E dom')
+    Z_E_total.to_excel(writer, sheet_name='Z E dom tot')
+    A_E_total.to_excel(writer, sheet_name='A E dom tot')
+    Z_E_table_agg_E.to_excel(writer, sheet_name='Z E dom agg E')
+    A_E_table_agg_E.to_excel(writer, sheet_name='A E dom agg E')
+    source_str_agg_E.to_excel(writer, sheet_name='source share dom agg E')
+    source_str.to_excel(writer, sheet_name='source share dom')
+```
+
+## Imports Z E
+
+#### Demand
+
+```{python}
+# As we assumed so far, the import share is the same for each product, no matter where it is used, the same holds for import demand by sector. This is implicit in the previous assumptions of domestic Z demand and its distribution over sectors according to their respective total demand shares.
+# Thus import demand by sector can be calculated in a range of different ways: total Z demand - Z demand domestic; Total demand * supply import share; total import Z * industri total demand share
+```
+
+```{python}
+# Sectoral demand
+industry_E_imp_demand=pd.DataFrame(index=sectors_D,columns=E_products)
+for i in sectors_D:
+    for m in E_products:
+        industry_E_imp_demand.loc[i,m]=net_use_shares.loc[i,m]*imp_Z_supply[m]
+```
+
+#### Supply
+
+```{python}
+# Sectoral supply
+
+# We do not have any information about the supplying importing industries, thus we assume the same sectoral supply structure as we find for domestic net supply without own use:
+imp_net_supply_shares=net_supply_shares.copy()
+for e in E_products:
+# As 'Brown coal and peat' is only imported, we do not have a domestic supply structure to base imported supply on. However, is is straightforward to assume that as hard coal, this is provided by sector 'B'.
+    if e =='Brown coal and peat':
+        imp_net_supply_shares[e]=0
+        imp_net_supply_shares.loc['B',e]=1
+    elif industry_E_imp_demand.sum()[e]==0:
+        imp_net_supply_shares[e]=0
+
+industry_E_imp_supply=pd.DataFrame(index=sectors_D,columns=E_products)
+for e in E_products:        
+    industry_E_imp_supply[e]=imp_net_supply_shares[e]*imp_Z_supply[e]
+```
+
+### Import Z matrix by E product
+
+#### Non-RAS structure
+
+```{python}
+Z_E_imp={}
+pot_RAS_E_products_imp=[]
+for e in E_products:
+    Z_E_imp[e]=pd.DataFrame(0,index=sectors_D,columns=sectors_D)
+    if (industry_E_imp_demand[e]>0).sum()==1:
+        Z_E_imp[e].loc[industry_E_imp_supply[e].loc[industry_E_imp_supply[e]>0].index,industry_E_imp_demand[e].loc[industry_E_imp_demand[e]>0].index]=industry_E_imp_supply[e].loc[industry_E_imp_supply[e]>0].values
+    elif (industry_E_imp_supply[e]>0).sum()==1:
+        Z_E_imp[e].loc[industry_E_imp_supply[e].loc[industry_E_imp_supply[e]>0].index,industry_E_imp_demand[e].loc[industry_E_imp_demand[e]>0].index]=industry_E_imp_demand[e].loc[industry_E_imp_demand[e]>0].values
+    elif all(industry_E_imp_supply[e]<1e-10):
+        Z_E_imp[e]=pd.DataFrame(0,index=sectors_D,columns=sectors_D)
+    else:
+        pot_RAS_E_products_imp.append(e)
+```
+
+#### Non-RAS E sectors
+
+```{python}
+# looking only at our energy sectors can also render RAS unnecessary as only one supplier
+
+RAS_E_products_imp=[]
+for e in pot_RAS_E_products_imp:
+    if (industry_E_imp_supply[e][E_sectors]>0).sum()==1:
+        Z_E_imp[e].loc[industry_E_imp_supply.loc[E_sectors,e][industry_E_imp_supply.loc[E_sectors,e]>0].index,industry_E_imp_demand[e].loc[industry_E_imp_demand[e]>0].index]=industry_E_imp_demand[e].loc[industry_E_imp_demand[e]>0].values*imp_net_supply_shares.loc[E_sectors,e].sum()
+    else:
+        RAS_E_products_imp.append(e)
+```
+
+#### RAS structure
+
+```{python}
+for e in RAS_E_products_imp:
+    relevant_Z=Z_imp.loc[industry_E_imp_supply.loc[E_sectors,e][industry_E_imp_supply.loc[E_sectors,e]>0].index,industry_E_imp_demand[e].loc[industry_E_imp_demand[e]>0].index]
+# for supplying industries we can only have our energy sectors
+    relevant_Z=relevant_Z.loc[relevant_Z.index.isin(E_sectors)]
+    rowsums=industry_E_imp_supply[e].loc[industry_E_imp_supply[e]>0]
+# again, for supplying industries we can only have our energy sectors
+    rowsums=rowsums[rowsums.index.isin(E_sectors)].values
+    colsums=industry_E_imp_demand[e].loc[industry_E_imp_demand[e]>0].values
+# use has to be scaled by modelled supply share, again assuming the fixed product sale structure
+    colsums=colsums*imp_net_supply_shares.loc[relevant_Z.index,e].sum()
+    Z_E_imp[e].loc[industry_E_imp_supply.loc[E_sectors,e][industry_E_imp_supply.loc[E_sectors,e]>0].index,industry_E_imp_demand[e].loc[industry_E_imp_demand[e]>0].index]=RAS(relevant_Z,colsums=colsums,rowsums=rowsums)
+    #print(e)
+```
+
+```{python}
+A_E_imp={}
+for e in E_products:
+    A_E_imp[e] = Z_E_imp[e] @ x_dom_inv_diag
+    A_E_imp[e].columns=A_E_imp[e].index
+```
+
+### Tables and Aggregation
+
+```{python}
+Z_E_imp_table=pd.DataFrame(index=pd.MultiIndex.from_product([E_products,sectors_D]),columns=sectors_D)
+A_E_imp_table=pd.DataFrame(index=pd.MultiIndex.from_product([E_products,sectors_D]),columns=sectors_D)
+for e in E_products:
+    Z_E_imp_table.loc[e]=Z_E_imp[e].values
+    A_E_imp_table.loc[e]=A_E_imp[e].values
+
+# Totals
+Z_E_imp_total=Z_E_imp_table.groupby(level=1,axis=0,sort=False).sum()
+A_E_imp_total=A_E_imp_table.groupby(level=1,axis=0,sort=False).sum()
+
+# Agg E products
+Z_E_imp_table_agg_E=pd.DataFrame(index=pd.MultiIndex.from_product([E_products_agg.keys(),sectors_D]),columns=sectors_D)
+A_E_imp_table_agg_E=pd.DataFrame(index=pd.MultiIndex.from_product([E_products_agg.keys(),sectors_D]),columns=sectors_D)
+for e in E_products_agg.keys():
+    Z_E_imp_table_agg_E.loc[e]=Z_E_imp_table.loc[E_products_agg[e]].groupby(level=1,axis=0,sort=False).sum().values
+    A_E_imp_table_agg_E.loc[e]=A_E_imp_table.loc[E_products_agg[e]].groupby(level=1,axis=0,sort=False).sum().values
+```
+
+```{python}
+# Cell specific source structure
+source_str_imp=pd.DataFrame(index=pd.MultiIndex.from_product([E_products,sectors_D]),columns=sectors_D)
+for i in sectors_D:
+    for j in sectors_D:
+        for e in E_products:
+            if Z_E_imp_total.loc[i,j]==0:
+                source_str_imp.loc[(e,i),j]=0
+            else:
+                source_str_imp.loc[(e,i),j]=Z_E_imp_table.loc[(e,i),j]/Z_E_imp_total.loc[i,j]
+
+
+source_str_imp_agg_E=pd.DataFrame(index=pd.MultiIndex.from_product([E_products_agg.keys(),sectors_D]),columns=sectors_D)
+for e in E_products_agg.keys():
+    source_str_imp_agg_E.loc[e]=source_str_imp.loc[E_products_agg[e]].groupby(level=1,axis=0,sort=False).sum().values
+```
+
+### Export
+
+```{python}
+with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
+    Z_E_imp_table.to_excel(writer, sheet_name='Z E imp')
+    A_E_imp_table.to_excel(writer, sheet_name='A E imp')
+    Z_E_imp_total.to_excel(writer, sheet_name='Z E imp tot')
+    A_E_imp_total.to_excel(writer, sheet_name='A E imp tot')
+    Z_E_imp_table_agg_E.to_excel(writer, sheet_name='Z E imp agg E')
+    A_E_imp_table_agg_E.to_excel(writer, sheet_name='A E imp agg E')
+    source_str_imp_agg_E.to_excel(writer, sheet_name='source share imp agg E')
+    source_str_imp.to_excel(writer, sheet_name='source share imp')
+```
+
+## Findem
+
+```{python}
+# here we assume that each product has the same sale structure, i.e. is spread across all demand categories the same way no matter its sector of origin
+# this means that the supply from each industry by good is determined by its net supply share
+# we conduct this only for final demand as for Z we link it to monetary flows (see below) 
+```
+
+### Domestic
+
+```{python}
+findem_sec_agg=pd.DataFrame(index=sectors_D,columns=pd.MultiIndex.from_product([['H','EX'],E_products]))
+for i in sectors_D:
+    for e in E_products:
+        findem_sec_agg.loc[i,('H',e)]=dom_hh_findem[e]*net_supply_shares.loc[i,e]
+        findem_sec_agg.loc[i,('EX',e)]=dom_exp_findem[e]*net_supply_shares.loc[i,e]
+```
+
+### Imports
+
+```{python}
+findem_imp_sec_agg=pd.DataFrame(index=sectors_D,columns=pd.MultiIndex.from_product([['H','EX'],E_products]))
+for i in sectors_D:
+    for e in E_products:
+        findem_imp_sec_agg.loc[i,('H',e)]=imp_hh_findem[e]*imp_net_supply_shares.loc[i,e]
+        findem_imp_sec_agg.loc[i,('EX',e)]=imp_exp_findem[e]*imp_net_supply_shares.loc[i,e]
+```
+
+### Aggregation
+
+```{python}
+# Totals
+findem_sec_agg_total=findem_sec_agg.groupby(level=0,axis=1,sort=False).sum()
+findem_imp_sec_agg_total=findem_imp_sec_agg.groupby(level=0,axis=1,sort=False).sum()
+
+# Agg E products
+findem_sec_agg_E_agg=pd.DataFrame(index=sectors_D,columns=pd.MultiIndex.from_product([['H','EX'],E_products_agg.keys()]))
+findem_imp_sec_agg_E_agg=pd.DataFrame(index=sectors_D,columns=pd.MultiIndex.from_product([['H','EX'],E_products_agg.keys()]))
+for i in sectors_D:
+    for h in ['H','EX']:
+        for e in E_products_agg.keys():
+            findem_sec_agg_E_agg.loc[i,(h,e)]=findem_sec_agg.loc[i,(h,E_products_agg[e])].sum()
+            findem_imp_sec_agg_E_agg.loc[i,(h,e)]=findem_imp_sec_agg.loc[i,(h,E_products_agg[e])].sum()
+
+
+# Cell specific source structure
+source_str_findem=pd.DataFrame(index=pd.MultiIndex.from_product([E_products,sectors_D]),columns=['H','EX'])
+for i in sectors_D:
+    for j in ['H','EX']:
+        for e in E_products:
+            if findem_sec_agg_total.loc[i,j]==0:
+                source_str_findem.loc[(e,i),j]=0
+            else:
+                source_str_findem.loc[(e,i),j]=findem_sec_agg.loc[i,(j,e)]/findem_sec_agg_total.loc[i,j]
+#
+# imports
+source_str_findem_imp=pd.DataFrame(index=pd.MultiIndex.from_product([E_products,sectors_D]),columns=['H','EX'])
+for i in sectors_D:
+    for j in ['H','EX']:
+        for e in E_products:
+            if findem_imp_sec_agg_total.loc[i,j]==0:
+                source_str_findem_imp.loc[(e,i),j]=0
+            else:
+                source_str_findem_imp.loc[(e,i),j]=findem_imp_sec_agg.loc[i,(j,e)]/findem_imp_sec_agg_total.loc[i,j]
+
+
+# Source share agg E products
+source_str_findem_agg_E=pd.DataFrame(index=pd.MultiIndex.from_product([E_products_agg.keys(),sectors_D]),columns=['H','EX'])
+source_str_findem_imp_agg_E=pd.DataFrame(index=pd.MultiIndex.from_product([E_products_agg.keys(),sectors_D]),columns=['H','EX'])
+for e in E_products_agg.keys():
+    source_str_findem_agg_E.loc[e]=source_str_findem.loc[E_products_agg[e]].groupby(level=1,axis=0,sort=False).sum().values
+    source_str_findem_imp_agg_E.loc[e]=source_str_findem_imp.loc[E_products_agg[e]].groupby(level=1,axis=0,sort=False).sum().values
+```
+
+```{python}
+# Reorganise for Vensim use
+source_str_findem_agg_E_reorg=pd.DataFrame(index=pd.MultiIndex.from_product([['H','EX'],sectors_D]),columns=E_products_agg.keys())
+for j in ['H','EX']:
+    for i in sectors_D:
+        for e in E_products_agg.keys():
+            source_str_findem_agg_E_reorg.loc[(j,i),e]=source_str_findem_agg_E.loc[(e,i),j]
+
+source_str_findem_imp_agg_E_reorg=pd.DataFrame(index=pd.MultiIndex.from_product([['H','EX'],sectors_D]),columns=E_products_agg.keys())
+for j in ['H','EX']:
+    for i in sectors_D:
+        for e in E_products_agg.keys():
+            source_str_findem_imp_agg_E_reorg.loc[(j,i),e]=source_str_findem_imp_agg_E.loc[(e,i),j]
+```
+
+### Export
+
+```{python}
+with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
+    findem_sec_agg.to_excel(writer, sheet_name='findem dom')
+    findem_sec_agg_total.to_excel(writer, sheet_name='findem dom tot')
+    findem_sec_agg_E_agg.to_excel(writer, sheet_name='findem dom E agg')
+#    source_str_findem.to_excel(writer, sheet_name='findem source share dom')
+#    source_str_findem_agg_E.to_excel(writer, sheet_name='findem source share dom agg E')
+# imports
+    findem_imp_sec_agg.to_excel(writer, sheet_name='findem imp')
+    findem_imp_sec_agg_total.to_excel(writer, sheet_name='findem imp tot')
+    findem_imp_sec_agg_E_agg.to_excel(writer, sheet_name='findem imp E agg')
+    source_str_findem_imp.to_excel(writer, sheet_name='findem source share imp')
+    source_str_findem_imp_agg_E.to_excel(writer, sheet_name='findem source share imp agg E')
+# reorganised FD for Vensim
+    source_str_findem_agg_E_reorg.to_excel(writer, sheet_name='findem source share dom agg E')
+    source_str_findem_imp_agg_E_reorg.to_excel(writer, sheet_name='findem source share imp agg E')
+```
+
+## Implicit price
+
+```{python}
+## Domestix
+# Z
+p_Z_dom=M_Z_E_dom/Z_E_total
+p_Z_dom.fillna(value=0,inplace=True)
+p_Z_dom.replace([np.inf,-np.inf],0,inplace=True)
+# FD
+p_FD_dom=FD_Z_E_dom/findem_sec_agg_total
+p_FD_dom.fillna(value=0,inplace=True)
+p_FD_dom.replace([np.inf,-np.inf],0,inplace=True)
+
+## Imports
+# Z
+p_Z_imp=M_Z_E_imp/Z_E_imp_total
+p_Z_imp.fillna(value=0,inplace=True)
+p_Z_imp.replace([np.inf,-np.inf],0,inplace=True)
+# FD
+p_FD_imp=FD_Z_E_imp/findem_imp_sec_agg_total['H']
+p_FD_imp.fillna(value=0,inplace=True)
+p_FD_imp.replace([np.inf,-np.inf],0,inplace=True)
+```
+
+```{python}
+# Intensity per EURO
+mio=1e+6
+#https://www.rug.nl/ggdc/valuechain/wiod/wiod-2016-release
+euro_dollar=1.3257
+
+## Domestix
+# Z
+int_Z_dom=Z_E_total/(M_Z_E_dom*mio/euro_dollar)
+int_Z_dom.fillna(value=0,inplace=True)
+int_Z_dom.replace([np.inf,-np.inf],0,inplace=True)
+# FD
+int_FD_dom=findem_sec_agg_total/(FD_Z_E_dom*mio/euro_dollar)
+int_FD_dom.fillna(value=0,inplace=True)
+int_FD_dom.replace([np.inf,-np.inf],0,inplace=True)
+
+## Imports
+# Z
+int_Z_imp=Z_E_imp_total/(M_Z_E_imp*mio/euro_dollar)
+int_Z_imp.fillna(value=0,inplace=True)
+int_Z_imp.replace([np.inf,-np.inf],0,inplace=True)
+# FD
+int_FD_imp=findem_imp_sec_agg_total['H']/(FD_Z_E_imp*mio/euro_dollar)
+int_FD_imp.fillna(value=0,inplace=True)
+int_FD_imp.replace([np.inf,-np.inf],0,inplace=True)
+```
+
+```{python}
+M_Z_E_dom_share=M_Z_E_dom/Z_dom
+M_Z_E_dom_share.fillna(value=0,inplace=True)
+FD_Z_E_dom_share=pd.DataFrame(index=sectors_D,columns=['H','EX'])
+FD_Z_E_dom_share['H']=FD_Z_E_dom['H']/findem_dom['H']
+FD_Z_E_dom_share['EX']=FD_Z_E_dom['EX']/findem_exp
+M_Z_E_imp_share=M_Z_E_imp/Z_imp
+M_Z_E_imp_share.fillna(value=0,inplace=True)
+FD_Z_E_imp_share=FD_Z_E_imp/findem_imp['H']
+```
+
+```{python}
+with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
+    int_Z_dom.to_excel(writer, sheet_name='int Z dom')
+    int_FD_dom.to_excel(writer, sheet_name='int FD dom')
+    int_Z_imp.to_excel(writer, sheet_name='int Z imp')
+    int_FD_imp.to_excel(writer, sheet_name='int FD imp')
+# Shares
+    M_Z_E_dom_share.to_excel(writer,sheet_name='E M share Z dom')
+    M_Z_E_imp_share.to_excel(writer,sheet_name='E M share Z imp')
+    FD_Z_E_dom_share.to_excel(writer,sheet_name='E M share FD dom')
+    FD_Z_E_imp_share.to_excel(writer,sheet_name='E M share FD imp')
+```
+
+##### Discrepancies
+
+```{python}
+for i in sectors_D:
+    for j in sectors_D:
+        if int_Z_dom.loc[i,j]==0 and M_Z_E_dom_share.loc[i,j]!=0:
+            print(f'dom Z {i,j}')
+            M_Z_E_dom_share.loc[i,j]=0
+        if int_Z_imp.loc[i,j]==0 and M_Z_E_imp_share.loc[i,j]!=0:
+            print(f'imp Z {i,j}')
+            M_Z_E_imp_share.loc[i,j]=0
+    for c in ['H','EX']:
+        if int_FD_dom.loc[i,c]==0 and FD_Z_E_dom_share.loc[i,c]!=0:
+            print(f'fd dom {c,i}')
+            FD_Z_E_dom_share.loc[i,c]=0
+    if int_FD_imp.loc[i]==0 and FD_Z_E_imp_share.loc[i]!=0:
+        print(f'fd imp {i}')
+        FD_Z_E_imp_share.loc[i]=0
+```
+
+```{python}
+with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
+# Shares
+    M_Z_E_dom_share.to_excel(writer,sheet_name='E M share Z dom')
+    M_Z_E_imp_share.to_excel(writer,sheet_name='E M share Z imp')
+    FD_Z_E_dom_share.to_excel(writer,sheet_name='E M share FD dom')
+    FD_Z_E_imp_share.to_excel(writer,sheet_name='E M share FD imp')
+```
+
+# Types of use
+
+### Re import PEFA and definitions
+
+```{python}
+supply=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010.xlsx', header=[10], index_col=[0], sheet_name='Sheet 1',nrows=39)
+use=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010.xlsx', header=[10], index_col=[0], sheet_name='Sheet 2',nrows=39)
+
+E_products=['Hard coal','Brown coal and peat','Derived gases (= manufactured gases excl. biogas)','Secondary coal products (coke, coal tar, patent fuel, BKB and peat products)','Crude oil, NGL, and other hydrocarbons (excl. bio)','Natural gas (without bio)', 'Motor spirit (without bio)','Kerosenes and jet fuels (without bio)', 'Naphtha', 'Transport diesel (without bio)','Heating and other gasoil (without bio)', 'Residual fuel oil','Refinery gas, ethane and LPG','Other petroleum products incl. additives/oxygenates and refinery feedstocks','Nuclear fuel', 'Wood, wood waste and other solid biomass, charcoal','Liquid biofuels', 'Biogas', 'Electrical energy', 'Heat']
+
+A=['Crop and animal production, hunting and related service activities','Forestry and logging','Fishing and aquaculture']
+B=['Mining and quarrying']
+C=['Manufacture of food products; beverages and tobacco products','Manufacture of textiles, wearing apparel, leather and related products','Manufacture of wood and of products of wood and cork, except furniture; manufacture of articles of straw and plaiting materials','Manufacture of paper and paper products','Printing and reproduction of recorded media','Manufacture of chemicals and chemical products','Manufacture of basic pharmaceutical products and pharmaceutical preparations','Manufacture of rubber and plastic products','Manufacture of other non-metallic mineral products','Manufacture of basic metals','Manufacture of fabricated metal products, except machinery and equipment','Manufacture of computer, electronic and optical products','Manufacture of electrical equipment','Manufacture of machinery and equipment n.e.c.','Manufacture of furniture; other manufacturing','Repair and installation of machinery and equipment']
+C19=['Manufacture of coke and refined petroleum products']
+C29=['Manufacture of motor vehicles, trailers and semi-trailers','Manufacture of other transport equipment']
+D=['Electricity, gas, steam and air conditioning supply']
+E=['Water collection, treatment and supply','Sewerage, waste management, remediation activities']
+F=['Construction']
+G=['Wholesale and retail trade and repair of motor vehicles and motorcycles','Wholesale trade, except of motor vehicles and motorcycles','Retail trade, except of motor vehicles and motorcycles']
+H=['Land transport and transport via pipelines','Water transport','Air transport']
+H_M_N=['Warehousing and support activities for transportation','Postal and courier activities','Legal and accounting activities; activities of head offices; management consultancy activities','Architectural and engineering activities; technical testing and analysis','Scientific research and development','Advertising and market research','Other professional, scientific and technical activities; veterinary activities','Rental and leasing activities','Employment activities','Travel agency, tour operator and other reservation service and related activities','Security and investigation, service and landscape, office administrative and support activities']
+I=['Accommodation and food service activities']
+J_R_S=['Publishing activities','Motion picture, video, television programme production; programming and broadcasting activities','Telecommunications','Computer programming, consultancy, and information service activities','Creative, arts and entertainment activities; libraries, archives, museums and other cultural activities; gambling and betting activities','Sports activities and amusement and recreation activities','Activities of membership organisations','Repair of computers and personal and household goods','Other personal service activities']
+K=['Financial service activities, except insurance and pension funding','Insurance, reinsurance and pension funding, except compulsory social security','Activities auxiliary to financial services and insurance activities']
+L=['Real estate activities']
+O=['Public administration and defence; compulsory social security']
+P=['Education']
+Q=['Human health activities','Residential care activities and social work activities without accommodation']
+T_U=['Activities of households as employers; undifferentiated goods- and services-producing activities of households for own use']
+agg_ind={'A':A,'B':B,'C':C,'C19':C19,'C29':C29,'D':D,'E':E,'F':F,'G':G,'H':H,'H_M_N':H_M_N,'I':I,'J_R_S':J_R_S,'K':K,'L':L,'O':O,'P':P,'Q':Q,'T':T_U}
+
+E_sectors=['A','B','C19','D']
+E_sectors_nonbio=[x for x in E_sectors if x not in ['A']]
+
+# Energy Products
+
+E_products=['Hard coal','Brown coal and peat','Derived gases (= manufactured gases excl. biogas)','Secondary coal products (coke, coal tar, patent fuel, BKB and peat products)','Crude oil, NGL, and other hydrocarbons (excl. bio)','Natural gas (without bio)', 'Motor spirit (without bio)','Kerosenes and jet fuels (without bio)', 'Naphtha', 'Transport diesel (without bio)','Heating and other gasoil (without bio)', 'Residual fuel oil','Refinery gas, ethane and LPG','Other petroleum products incl. additives/oxygenates and refinery feedstocks','Nuclear fuel', 'Wood, wood waste and other solid biomass, charcoal','Liquid biofuels', 'Biogas', 'Electrical energy', 'Heat']
+
+E_prod_coal=['Hard coal', 'Brown coal and peat', 'Secondary coal products (coke, coal tar, patent fuel, BKB and peat products)','Derived gases (= manufactured gases excl. biogas)']
+E_prod_gas_natural=['Natural gas (without bio)']
+E_prod_oil=[ 'Crude oil, NGL, and other hydrocarbons (excl. bio)','Motor spirit (without bio)','Kerosenes and jet fuels (without bio)','Naphtha', 'Transport diesel (without bio)', 'Heating and other gasoil (without bio)',  'Residual fuel oil', 'Refinery gas, ethane and LPG','Other petroleum products incl. additives/oxygenates and refinery feedstocks',]
+E_prod_nuc=['Nuclear fuel']
+E_prod_biofuels=['Wood, wood waste and other solid biomass, charcoal', 'Liquid biofuels', 'Biogas']
+E_prod_elec=['Electrical energy']
+E_prod_heat=['Heat']
+
+E_products_agg={'Coal and coal products':E_prod_coal,'Natural gas':E_prod_gas_natural,'Oil and petroleum products':E_prod_oil,'Nuclear fuel':E_prod_nuc, 'Biofuels':E_prod_biofuels,'Electricity':E_prod_elec,'Heat':E_prod_heat}
+
+E_agg=list(E_products_agg)
+E_agg_no_nuclear=[x for x in E_agg if x not in ['Nuclear fuel']]
+
+
+supply.dropna(axis=0,how='all',inplace=True)
+supply.dropna(axis=1,how='any',inplace=True)
+supply.drop(labels=['Unnamed: 136'],axis=1,inplace=True)
+
+use.dropna(axis=0,how='all',inplace=True)
+use.dropna(axis=1,how='any',inplace=True)
+
+supply_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products)
+for m in E_products:
+    for i in agg_ind.keys():
+        supply_sec_agg.loc[i,m]=supply.loc[m,agg_ind[i]].sum()
+
+use_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products)
+for m in E_products:
+    for i in agg_ind.keys():
+        use_sec_agg.loc[i,m]=use.loc[m,agg_ind[i]].sum()
+
+        
+
+```
+
+### Transformation, end and emission relevant use
+
+```{python}
+t_use=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010_use.xlsx', header=[10], index_col=[0], sheet_name='Sheet 2',nrows=39)
+f_use=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010_use.xlsx', header=[10], index_col=[0], sheet_name='Sheet 3',nrows=39)
+e_use=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010_use.xlsx', header=[10], index_col=[0], sheet_name='Sheet 4',nrows=39)
+
+t_use.dropna(axis=0,how='all',inplace=True)
+t_use.dropna(axis=1,how='any',inplace=True)
+t_use.drop(labels=['Unnamed: 132','Unnamed: 134','Unnamed: 136','Unnamed: 138'],axis=1,inplace=True)
+
+f_use.dropna(axis=0,how='all',inplace=True)
+f_use.dropna(axis=1,how='any',inplace=True)
+
+e_use.dropna(axis=0,how='all',inplace=True)
+e_use.dropna(axis=1,how='any',inplace=True)
+e_use.drop(labels=['Unnamed: 134','Unnamed: 138','Unnamed: 140'],axis=1,inplace=True)
+e_use.loc[['Electrical energy','Heat']]=0
+```
+
+```{python}
+t_use_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products)
+for m in E_products:
+    for i in agg_ind.keys():
+        t_use_sec_agg.loc[i,m]=t_use.loc[m,agg_ind[i]].sum()
+
+f_use_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products)
+for m in E_products:
+    for i in agg_ind.keys():
+        f_use_sec_agg.loc[i,m]=f_use.loc[m,agg_ind[i]].sum()
+
+e_use_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products)
+for m in E_products:
+    for i in agg_ind.keys():
+        e_use_sec_agg.loc[i,m]=e_use.loc[m,agg_ind[i]].sum()
+
+```
+
+```{python}
+f_use_share=f_use_sec_agg.div(use_sec_agg.where(use_sec_agg!=0,np.nan))
+f_use_share.fillna(value=0,inplace=True)
+```
+
+```{python}
+e_use_share=e_use_sec_agg.div(use_sec_agg.where(use_sec_agg!=0,np.nan))
+e_use_share.fillna(value=0,inplace=True)
+```
+
+#### Findem
+
+```{python}
+use_hh=use.loc[E_products,'Total activities by households'].squeeze()
+f_use_hh=f_use.loc[E_products,'Total activities by households'].squeeze()
+e_use_hh=e_use.loc[E_products,'Total activities by households'].squeeze()
+```
+
+```{python}
+f_use_share_hh=f_use_hh.div(use_hh.where(use_hh!=0,np.nan))
+f_use_share_hh.fillna(value=0,inplace=True)
+```
+
+```{python}
+e_use_share_hh=e_use_hh.div(use_hh.where(use_hh!=0,np.nan))
+e_use_share_hh.fillna(value=0,inplace=True)
+```
+
+### Split D
+
+```{python}
+# To split D, we assume that all D subsectors have the same emission relevant and end use energy shares by product
+D_sectors=['D1','D2','D3']
+```
+
+```{python}
+f_use_share_D=pd.DataFrame(index=D_sectors,columns=E_products)
+for i in D_sectors:
+    f_use_share_D.loc[i]=f_use_share.loc['D']
+
+# Heat
+for i in ['D2','D3']:
+    f_use_share_D.loc[i,'Heat']=1
+f_heatuse_D1=f_use_sec_agg.loc['D','Heat']-use_D.loc[['D2','D3'],'Heat'].sum()
+f_use_share_D.loc['D1','Heat']=f_heatuse_D1/use_D.loc['D1','Heat']
+
+f_use_share=pd.concat([f_use_share,f_use_share_D],axis=0)
+f_use_share.drop('D',axis=0,inplace=True)
+f_use_share=f_use_share.reindex(sectors_D)
+```
+
+```{python}
+e_use_share_D=pd.DataFrame(index=D_sectors,columns=E_products)
+for i in D_sectors:
+    e_use_share_D.loc[i]=e_use_share.loc['D']
+
+e_use_share=pd.concat([e_use_share,e_use_share_D],axis=0)
+e_use_share.drop('D',axis=0,inplace=True)
+e_use_share=e_use_share.reindex(sectors_D)
+```
+
+### Aggregate and export
+
+```{python}
+# Energy Products aggregation 
+PEFA_E_prod_coal=['Hard coal', 'Brown coal and peat', 'Secondary coal products (coke, coal tar, patent fuel, BKB and peat products)','Derived gases (= manufactured gases excl. biogas)']
+PEFA_E_prod_gas_natural=['Natural gas (without bio)']
+PEFA_E_prod_oil=[ 'Crude oil, NGL, and other hydrocarbons (excl. bio)','Motor spirit (without bio)','Kerosenes and jet fuels (without bio)','Naphtha', 'Transport diesel (without bio)', 'Heating and other gasoil (without bio)',  'Residual fuel oil', 'Refinery gas, ethane and LPG','Other petroleum products incl. additives/oxygenates and refinery feedstocks',]
+PEFA_E_prod_nuc=['Nuclear fuel']
+PEFA_E_prod_biofuels=['Wood, wood waste and other solid biomass, charcoal', 'Liquid biofuels', 'Biogas']
+PEFA_E_prod_elec=['Electrical energy']
+PEFA_E_prod_heat=['Heat']
+
+PEFA_E_products_agg={'Coal and coal products':PEFA_E_prod_coal,'Natural gas':PEFA_E_prod_gas_natural,'Oil and petroleum products':PEFA_E_prod_oil,'Nuclear fuel':PEFA_E_prod_nuc, 'Biofuels':PEFA_E_prod_biofuels,'Electricity':PEFA_E_prod_elec,'Heat':PEFA_E_prod_heat}
+```
+
+#### industries
+
+```{python}
+t_use_sec_agg_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=PEFA_E_products_agg.keys())
+for m in PEFA_E_products_agg.keys():
+    t_use_sec_agg_E_agg[m]=t_use_sec_agg[PEFA_E_products_agg[m]].sum(axis=1)
+
+f_use_sec_agg_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=PEFA_E_products_agg.keys())
+for m in PEFA_E_products_agg.keys():
+    f_use_sec_agg_E_agg[m]=f_use_sec_agg[PEFA_E_products_agg[m]].sum(axis=1)
+
+e_use_sec_agg_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=PEFA_E_products_agg.keys())
+for m in PEFA_E_products_agg.keys():
+    e_use_sec_agg_E_agg[m]=e_use_sec_agg[PEFA_E_products_agg[m]].sum(axis=1)
+
+```
+
+```{python}
+e_use_share_agg_E=e_use_sec_agg_E_agg/use_sec_agg_E_agg
+e_use_share_agg_E.fillna(value=0,inplace=True)
+
+f_use_share_agg_E=f_use_sec_agg_E_agg/use_sec_agg_E_agg
+f_use_share_agg_E.fillna(value=0,inplace=True)
+```
+
+##### Split D
+
+```{python}
+e_use_share_D_agg_E=pd.DataFrame(index=D_sectors,columns=E_products_agg.keys())
+for i in D_sectors:
+    e_use_share_D_agg_E.loc[i]=e_use_share_agg_E.loc['D']
+
+e_use_share_agg_E=pd.concat([e_use_share_agg_E,e_use_share_D_agg_E],axis=0)
+e_use_share_agg_E.drop('D',axis=0,inplace=True)
+e_use_share_agg_E=e_use_share_agg_E.reindex(sectors_D)
+```
+
+```{python}
+f_use_share_D_agg_E=pd.DataFrame(index=D_sectors,columns=E_products_agg.keys())
+for i in D_sectors:
+    f_use_share_D_agg_E.loc[i]=f_use_share_agg_E.loc['D']
+
+# Heat
+for i in ['D2','D3']:
+    f_use_share_D_agg_E['Heat']=f_use_share_D['Heat']
+
+f_use_share_agg_E=pd.concat([f_use_share_agg_E,f_use_share_D_agg_E],axis=0)
+f_use_share_agg_E.drop('D',axis=0,inplace=True)
+f_use_share_agg_E=f_use_share_agg_E.reindex(sectors_D)
+
+```
+
+#### households
+
+```{python}
+use_hh_E_agg=pd.DataFrame(index=E_products_agg.keys(),columns=['hh']).squeeze()
+for m in E_products_agg.keys():
+    use_hh_E_agg[m]=use_hh[E_products_agg[m]].sum()
+
+f_use_hh_E_agg=pd.DataFrame(index=E_products_agg.keys(),columns=['hh']).squeeze()
+for m in E_products_agg.keys():
+    f_use_hh_E_agg[m]=f_use_hh[E_products_agg[m]].sum()
+
+e_use_hh_E_agg=pd.DataFrame(index=E_products_agg.keys(),columns=['hh']).squeeze()
+for m in E_products_agg.keys():
+    e_use_hh_E_agg[m]=e_use_hh[E_products_agg[m]].sum()
+```
+
+```{python}
+e_use_share_hh_E_agg=e_use_hh_E_agg.div(use_hh_E_agg.where(use_hh_E_agg!=0,np.nan))
+e_use_share_hh_E_agg.fillna(value=0,inplace=True)
+
+f_use_share_hh_E_agg=f_use_hh_E_agg.div(use_hh_E_agg.where(use_hh_E_agg!=0,np.nan))
+f_use_share_hh_E_agg.fillna(value=0,inplace=True)
+```
+
+#### Export
+
+```{python}
+# Export
+with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
+    e_use_share.to_excel(writer, sheet_name='e share Z')
+    f_use_share.to_excel(writer, sheet_name='f share Z')
+    e_use_share_agg_E.to_excel(writer, sheet_name='e share Z agg E')
+    f_use_share_agg_E.to_excel(writer, sheet_name='f share Z agg E')
+# Findem
+    e_use_share_hh.to_excel(writer, sheet_name='e share hh')
+    f_use_share_hh.to_excel(writer, sheet_name='f share hh')
+    e_use_share_hh_E_agg.to_excel(writer, sheet_name='e share hh agg E')
+    f_use_share_hh_E_agg.to_excel(writer, sheet_name='f share hh agg E')
+```
+
+### 
+
