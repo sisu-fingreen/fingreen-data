@@ -68,6 +68,112 @@ prod_nrg_vocabulary <- read.csv(
   filter(Status == "valid") %>% 
   select(prod_nrg = Notation, prod_nrg_description = Label)
 
+# Map almost to fingreen industry, but D sector is not disaggregated
+pefa_industry_to_intermediate_industry_map <- readxl::read_xlsx(
+  "source-data/mappings/eurostat-pefa-industry-to-fingreen-industry-map.xlsx",
+  sheet= "pefa"
+)
+
+nrg_prod_to_eurogreen_energy_product_map <- readxl::read_xlsx(
+  "source-data/mappings/eurostat-pefa-nrg-prod-to-eurogreen-energy-prod-map.xlsx"
+)
+
+siec_to_eurogreen_energy_product_map <- readxl::read_xlsx(
+  "source-data/mappings/siec-to-eurogreen-energy-product-map.xlsx"
+)
+
+# calculate net supply and use --------------------------------------------
+
+# Make supply, use and own use into variables
+pefa_wider <- pefa %>% 
+  filter(
+    stk_flow %in% c("SUP", "USE")
+  ) %>% 
+  tidyr::pivot_wider(names_from = "stk_flow", values_from = "values") %>% 
+  rename(supply = SUP, use = USE) %>%
+  mutate(
+    own_use = if_else(
+      prod_nrg %in% c("P26", "P27"), # Own use is only relevant for Electrical energy P27 and heat P28
+      pmin(supply, use),
+      0
+    )
+  )
+
+value_vars <- c("supply", "use", "own_use")
+
+net_supply_and_use_industries_agg <- pefa_wider %>% 
+  inner_join(
+    filter(pefa_industry_to_intermediate_industry_map, relationship != "extra"),
+    by = c("nace_r2" = "eurostat_nace_r2")
+  ) %>% 
+  group_by(geo, time, intermediate_industry_code, prod_nrg) %>%
+  # sum all of the value variables
+  summarise(across(all_of(value_vars), .fns = ~ sum(.x, na.rm = T)), .groups = "drop") %>% 
+  mutate(
+    net_supply = supply - own_use,
+    net_use = use - own_use
+  )
+
+value_vars2 <- c(value_vars, "net_supply", "net_use")
+
+net_supply_and_use_industries_and_energy_products_agg <- net_supply_and_use_industries_agg %>% 
+  inner_join(nrg_prod_to_eurogreen_energy_product_map, by = "prod_nrg") %>% 
+  group_by(geo, time, intermediate_industry_code, eurogreen_energy_product) %>% 
+  summarise(across(all_of(value_vars2), .fns = ~ sum(.x, na.rm = T)), .groups = "drop")
+
+# disaggregate d sector ---------------------------------------------------
+
+# transformation input values for  electricity and heat main producers
+# TI_EHG_MAPE_E   Transformation input - electricity and heat generation - main activity producer electricity only - energy use       
+# TI_EHG_MAPCHP_E Transformation input - electricity and heat generation - main activity producer combined heat and power - energy use
+# TI_EHG_MAPH_E   Transformation input - electricity and heat generation - main activity producer heat only - energy use  
+relevant_nrg_bal_categories <- c("TI_EHG_MAPE_E", "TI_EHG_MAPCHP_E", "TI_EHG_MAPH_E")
+
+energy_balance_filtered <- energy_balance %>% 
+  filter(
+    nrg_bal %in% relevant_nrg_bal_categories
+  )
+
+energy_balance_intermediate_energy_product <- energy_balance_filtered %>% 
+  inner_join(siec_to_eurogreen_energy_product_map, by = "siec") %>% 
+  group_by(geo, time, nrg_bal, eurogreen_intermediate_energy_product) %>%
+  summarise(values = sum(values, na.rm = T), .groups = "drop")
+
+energy_balance_filtered %>% 
+  group_by(siec) %>% 
+  summarise(values = sum(values, na.rm = T)) %>% 
+  arrange(siec) %>% 
+  left_join(siec_to_eurogreen_energy_product_map) %>% 
+  left_join(siec_vocabulary, by = "siec") %>% 
+  View("siecchek")
+
+d_industry_use <- net_supply_and_use_industries_agg %>% 
+  filter(intermediate_industry_code == "D") %>%
+  inner_join(nrg_prod_to_eurogreen_energy_product_map, by = "prod_nrg") %>% 
+  group_by(geo, time, intermediate_industry_code, eurogreen_intermediate_energy_product) %>% 
+  summarise(use = sum(use), .groups = "drop")
+
+total_energy_balance <- energy_balance_intermediate_energy_product %>% 
+  group_by(geo, time, eurogreen_intermediate_energy_product) %>% 
+  summarise(values = sum(values, na.rm = T), .groups = "drop")
+
+energy_balance_pefa_frac <- total_energy_balance %>%
+  left_join(d_industry_use, by = c("geo", "time", "eurogreen_intermediate_energy_product")) %>%
+  mutate(pefa_frac = values / use)
+
+d1_share_energy_balance <- energy_balance_intermediate_energy_product %>% 
+  group_by(geo, time, eurogreen_intermediate_energy_product) %>% 
+  mutate(share_of_total = coalesce(values / sum(values, na.rm  = T), 0)) %>% 
+  ungroup() %>% 
+  filter(nrg_bal == "TI_EHG_MAPH_E")
+
+# TI_EHG_EPS Transformation input - electricity and heat generation - electricity for pumped storage
+
+# NRG_EHG_E Energy sector - electricity and heat generation - energy use
+
+# RA200 Geothermal
+# TI_EHG_MAPE_E Transformation input - electricity and heat generation - main activity producer electricity only - energy use
+
 foo <- energy_balance %>% 
   left_join(nrg_bal_vocabulary, by = "nrg_bal") %>% 
   left_join(siec_vocabulary, by = "siec") %>% 

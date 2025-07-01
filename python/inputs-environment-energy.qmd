@@ -4,19 +4,19 @@ jupyter: python3
 ---
 
 ```{python}
-import os
-from tqdm.notebook import tqdm,trange
-import pymrio as py
+# import os
+# from tqdm.notebook import tqdm,trange
+# import pymrio as py
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import math
-import pickle
-from importlib import reload
-#from RAS import Energy_A
-import sys
-#import floweaver as fw
+# import matplotlib.pyplot as plt
+# import seaborn as sns
+# import math
+# import pickle
+# from importlib import reload
+# #from RAS import Energy_A
+# import sys
+# #import floweaver as fw
 ```
 
 
@@ -227,7 +227,7 @@ for sublist in list(E_products_SIEC.values()):
 ```
 
 ```{python}
-E_balance=pd.read_excel('source-data/pisa-team-files/E_balance_disagg_transf_input.xlsx', header=[0], index_col=[0], sheet_name='Sheet 1',usecols=[0]+list(range(1,141,2)),skiprows=9,nrows=4)
+E_balance=pd.read_excel('source-data/pisa-team-files/E_Balance_disagg_transf_input.xlsx', header=[0], index_col=[0], sheet_name='Sheet 1',usecols=[0]+list(range(1,141,2)),skiprows=9,nrows=4, na_values=":")
 E_balance.drop(axis=0,labels='NRG_BAL (Labels)',inplace=True)
 ```
 
@@ -275,7 +275,7 @@ e_balance_D1_heat_supply_share=e_balance_supply.loc['D1','Heat']/e_balance_suppl
 
 ```{python}
 # Load x domestic
-x_dom=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/WIOD_IT.xlsx', sheet_name='x dom new',header=[0],index_col=[0]).squeeze()
+x_dom=pd.read_excel('source-data/pisa-team-files/WIOD_IT.xlsx', sheet_name='x dom new',header=[0],index_col=[0]).squeeze()
 x_dom_D_frac=x_dom[D_sectors]/x_dom[D_sectors].sum()
 x_dom_D1D3_frac=x_dom[['D1','D3']]/x_dom[['D1','D3']].sum()
 ```
@@ -352,7 +352,7 @@ for e in [x for x in E_products if x not in ['Electrical energy','Heat']]:
 
 ```{python}
 # Load locomotion to get index order
-Z=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/WIOD_IT.xlsx', sheet_name='Z WIOD Loco hybrid',header=[0],index_col=[0,1],skiprows=2)
+Z=pd.read_excel('source-data/pisa-team-files/WIOD_IT.xlsx', sheet_name='Z WIOD Loco hybrid',header=[0],index_col=[0,1],skiprows=2)
 Z.columns=Z.index
 Z_dom=Z.loc['DOM','DOM']
 sectors_D=Z_dom.index
@@ -474,7 +474,7 @@ loco_agg_sector={'A':secA,'B':secB,'C':secC,'C19':secC19, 'C29':secC29,'D1':secD
 ```
 
 ```{python}
-Z=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/WIOD_IT.xlsx', sheet_name='Z WIOD Loco hybrid',header=[0],index_col=[0,1],skiprows=2)
+Z=pd.read_excel('source-data/pisa-team-files/WIOD_IT.xlsx', sheet_name='Z WIOD Loco hybrid',header=[0],index_col=[0,1],skiprows=2)
 Z.columns=Z.index
 Z_dom=Z.loc['DOM','DOM']
 Z_imp=Z.loc['OTH','DOM']
@@ -483,7 +483,7 @@ sectors_D=Z_dom.index
 ```
 
 ```{python}
-findem=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/WIOD_IT.xlsx', sheet_name='findem wiod-loco',header=[0],index_col=[0,1])
+findem=pd.read_excel('source-data/pisa-team-files/WIOD_IT.xlsx', sheet_name='findem wiod-loco',header=[0],index_col=[0,1])
 findem_dom=findem.loc['dom']
 findem_exp=findem.loc['exp'][['H','G','GFCF','Z']].sum(axis=1)
 findem_imp=findem.loc['imp']
@@ -538,7 +538,7 @@ for i in full_E_secs:
 secB=['MINING_COAL','EXTRACTION_OIL','EXTRACTION_GAS','EXTRACTION_OTHER_GAS','MINING_URANIUM_THORIUM','MINING_IRON','MINING_COPPER','MINING_NICKEL','MINING_ALUMINIUM','MINING_PRECIOUS_METALS','MINING_LEAD_ZINC_TIN','MINING_OTHER_METALS','MINING_NON_METALS']
 secB_E=['MINING_COAL','EXTRACTION_OIL','EXTRACTION_GAS','EXTRACTION_OTHER_GAS','MINING_URANIUM_THORIUM']
 
-loco_Z=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/Locomotion_IT.xlsx',sheet_name='Z',header=[0,1],index_col=[0,1])
+loco_Z=pd.read_excel('source-data/pisa-team-files/Locomotion_IT.xlsx',sheet_name='Z',header=[0,1],index_col=[0,1])
 dom=['ITA']
 loco_regions=loco_Z.index.get_level_values(level=0).unique()
 imp_regions=[x for x in loco_regions if x not in dom]
@@ -561,7 +561,7 @@ M_Z_E_dom.loc['B']=Z_dom.loc['B']*Z_B_E_share
 ##### Findem
 
 ```{python}
-loco_findem=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/Locomotion_IT.xlsx',sheet_name='findem',header=[0],index_col=[0,1])
+loco_findem=pd.read_excel('source-data/pisa-team-files/Locomotion_IT.xlsx',sheet_name='findem',header=[0],index_col=[0,1])
 # HH findem
 fd_dom_h_B_E_share=loco_findem.loc['dom','H'].loc[secB_E].sum()/loco_findem.loc['dom','H'].loc[secB].sum()
 
@@ -680,7 +680,7 @@ for i in full_E_secs:
 secB=['MINING_COAL','EXTRACTION_OIL','EXTRACTION_GAS','EXTRACTION_OTHER_GAS','MINING_URANIUM_THORIUM','MINING_IRON','MINING_COPPER','MINING_NICKEL','MINING_ALUMINIUM','MINING_PRECIOUS_METALS','MINING_LEAD_ZINC_TIN','MINING_OTHER_METALS','MINING_NON_METALS']
 secB_E=['MINING_COAL','EXTRACTION_OIL','EXTRACTION_GAS','EXTRACTION_OTHER_GAS','MINING_URANIUM_THORIUM']
 
-loco_Z=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/Locomotion_IT.xlsx',sheet_name='Z',header=[0,1],index_col=[0,1])
+loco_Z=pd.read_excel('source-data/pisa-team-files/Locomotion_IT.xlsx',sheet_name='Z',header=[0,1],index_col=[0,1])
 dom=['ITA']
 loco_regions=loco_Z.index.get_level_values(level=0).unique()
 imp_regions=[x for x in loco_regions if x not in dom]
@@ -703,7 +703,7 @@ M_Z_E_imp.loc['B']=Z_imp.loc['B']*Z_B_E_imp_share
 ##### Findem
 
 ```{python}
-loco_findem=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/Locomotion_IT.xlsx',sheet_name='findem',header=[0],index_col=[0,1])
+loco_findem=pd.read_excel('source-data/pisa-team-files/Locomotion_IT.xlsx',sheet_name='findem',header=[0],index_col=[0,1])
 # HH findem
 fd_imp_h_B_E_share=loco_findem.loc['imp','H'].loc[secB_E].sum()/loco_findem.loc['imp','H'].loc[secB].sum()
 ```
@@ -886,7 +886,7 @@ for e in E_products:
 
 ```{python}
 # Load x domestic
-x_dom=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/WIOD_IT.xlsx', sheet_name='x dom new',header=[0],index_col=[0]).squeeze()
+x_dom=pd.read_excel('source-data/pisa-team-files/WIOD_IT.xlsx', sheet_name='x dom new',header=[0],index_col=[0]).squeeze()
 ```
 
 ```{python}
@@ -944,7 +944,7 @@ for e in E_products_agg.keys():
 ### Exports
 
 ```{python}
-with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/PEFA_IO_MEZ_RAS_clear_check_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
+with pd.ExcelWriter('source-data/pisa-team-files/PEFA_IO_MEZ_RAS_clear_check_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
     Z_E_table.to_excel(writer, sheet_name='Z E dom')
     A_E_table.to_excel(writer, sheet_name='A E dom')
     Z_E_total.to_excel(writer, sheet_name='Z E dom tot')
@@ -1089,7 +1089,7 @@ for e in E_products_agg.keys():
 ### Export
 
 ```{python}
-with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
+with pd.ExcelWriter('source-data/pisa-team-files/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
     Z_E_imp_table.to_excel(writer, sheet_name='Z E imp')
     A_E_imp_table.to_excel(writer, sheet_name='A E imp')
     Z_E_imp_total.to_excel(writer, sheet_name='Z E imp tot')
@@ -1192,7 +1192,7 @@ for j in ['H','EX']:
 ### Export
 
 ```{python}
-with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
+with pd.ExcelWriter('source-data/pisa-team-files/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
     findem_sec_agg.to_excel(writer, sheet_name='findem dom')
     findem_sec_agg_total.to_excel(writer, sheet_name='findem dom tot')
     findem_sec_agg_E_agg.to_excel(writer, sheet_name='findem dom E agg')
@@ -1272,7 +1272,7 @@ FD_Z_E_imp_share=FD_Z_E_imp/findem_imp['H']
 ```
 
 ```{python}
-with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
+with pd.ExcelWriter('source-data/pisa-team-files/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
     int_Z_dom.to_excel(writer, sheet_name='int Z dom')
     int_FD_dom.to_excel(writer, sheet_name='int FD dom')
     int_Z_imp.to_excel(writer, sheet_name='int Z imp')
@@ -1305,7 +1305,7 @@ for i in sectors_D:
 ```
 
 ```{python}
-with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
+with pd.ExcelWriter('source-data/pisa-team-files/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
 # Shares
     M_Z_E_dom_share.to_excel(writer,sheet_name='E M share Z dom')
     M_Z_E_imp_share.to_excel(writer,sheet_name='E M share Z imp')
@@ -1580,7 +1580,7 @@ f_use_share_hh_E_agg.fillna(value=0,inplace=True)
 
 ```{python}
 # Export
-with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
+with pd.ExcelWriter('source-data/pisa-team-files/PEFA_IO_MEZ_RAS_jan2025.xlsx',engine='openpyxl',mode='a', if_sheet_exists='replace') as writer:
     e_use_share.to_excel(writer, sheet_name='e share Z')
     f_use_share.to_excel(writer, sheet_name='f share Z')
     e_use_share_agg_E.to_excel(writer, sheet_name='e share Z agg E')
