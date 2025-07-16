@@ -4,19 +4,17 @@ jupyter: python3
 ---
 
 ```{python}
-import os
-from tqdm.notebook import tqdm,trange
-import pymrio as py
+#import os
+#from tqdm.notebook import tqdm,trange
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import seaborn as sns
-import math
+#import math
 import pickle
-from importlib import reload
+# from importlib import reload
 from WIOD_IO import parse_WIOD
-import sys
-import floweaver as fw
+# import sys
+# import floweaver as fw
 ```
 
 
@@ -26,7 +24,7 @@ import floweaver as fw
 ### output
 
 ```{python}
-os.chdir('C:/01_PhD/3rd project/python_codes/objects')
+os.chdir('objects/')
 year=2010
 WIOD_cyp=pd.read_excel(f'C:/01_PhD/2nd project/WIOD_data/current_year_prices/WIOT{year}_Nov16_ROW.xlsb', engine='pyxlsb', header=[2,4], index_col=[0,2], sheet_name=f'{year}',skiprows=[5],nrows=2464)
 parse_WIOD.set_class_indices(WIOD_cyp)

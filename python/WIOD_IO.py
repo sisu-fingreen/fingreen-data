@@ -3,7 +3,7 @@ import pandas as pd
 import math
 
 class parse_WIOD:
-    a_country=['ITA']
+    a_country=['FIN']
     EU_countries=['AUT', 'BEL', 'BGR', 'CYP', 'CZE', 'DEU', 'DNK', 'EST', 'ESP', 'FIN', 'FRA', 'GRC', 'HRV', 'HUN', 'IRL', 'ITA', 'LTU', 'LUX', 'LVA', 'MLT', 'NLD', 'POL', 'PRT', 'ROU', 'SWE', 'SVN', 'SVK']
     ################################################################
     A=['A01','A02','A03']
