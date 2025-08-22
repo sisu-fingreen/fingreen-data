@@ -462,20 +462,28 @@ calculate_u_stats <- function(df, filtering_df){
       sample_sd = sd(psi_a),
       n = n(),
       .groups = "drop"
-    ) %>% 
+    ) %>%
     tidyr::pivot_longer(cols = mean:n, names_to = "stat", values_to = "value") %>% 
-    mutate(
-      stat = factor(
-        stat,
-        levels = c("mean", "median", "sample_sd", "n"),
-        labels = c("Mean", "Median", "Sample SD", "n")
-      )
+      mutate(
+    stat = factor(
+      stat,
+      levels = c("mean", "median", "sample_sd", "n"),
+      labels = c("Mean", "Median", "Sample SD", "n")
     )
+  )
   return(res)
 }
 
 u_neg_norm_long <- calculate_u_stats(technical_coefficient_growth_filtered, total_intermediate_input_changes_neg)
 u_pos_norm_long <- calculate_u_stats(technical_coefficient_growth_filtered, total_intermediate_input_changes_pos)
+
+# calculate 5 % and 95 % quantiles over all changes to use as limits in the model distribution
+u_growth_limits <- technical_coefficient_growth_filtered |> 
+  group_by(geo) |>
+  summarise(
+    q05 = quantile(psi_a[psi_a < 0], 0.05),
+    q95 = quantile(psi_a[psi_a > 0], 0.95)
+  )
 
 # results -----------------------------------------------------------------
 
@@ -491,5 +499,7 @@ res_list <- list()
 
 res_list[["u_neg_norm"]] <- prepare_results(u_neg_norm_long)
 res_list[["u_pos_norm"]] <- prepare_results(u_pos_norm_long)
+res_list[["u_growth_limits"]] <- u_growth_limits
+
 
 writexl::write_xlsx(res_list, path = paste0(results_dir, "/u-neg-norm-pos-norm.xlsx"))
