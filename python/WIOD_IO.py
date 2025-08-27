@@ -49,8 +49,9 @@ class parse_WIOD:
         IO.columns.names=['sector','region']
         IO.index.names=['sector','region']
         IO=IO.swaplevel(i=0,j=1,axis=1)
-        IO=IO.swaplevel(i=0,j=1,axis=0)     
-        self.Z=IO.loc[:,(self.regions,self.sectors)]
+        IO=IO.swaplevel(i=0,j=1,axis=0)
+        # some of the columns are 0 -> int64, cast as float64 to avoid that and issues later
+        self.Z=IO.loc[:,(self.regions,self.sectors)].astype("float64")
         self.x=IO.sum(axis=1).squeeze()
         x_inv=1/self.x
         x_inv.fillna(value=0,inplace=True)
@@ -64,15 +65,13 @@ class parse_WIOD:
         self.calc_country_IO()
 
     def calc_country_IO(self):
-        self.Z_U=self.Z[self.a_country].groupby(level=1,axis=0,sort=False).sum()
+        self.Z_U=self.Z[self.a_country].groupby(level=1,sort=False).sum()
         self.Z_dom=self.Z.loc[self.a_country,self.a_country]
         self.Z_U.columns=self.Z_U.columns.droplevel(level=0)
         self.Z_dom.columns=self.Z_dom.columns.droplevel(level=0)
         self.Z_dom.index=self.Z_dom.index.droplevel(level=0)
         self.Z_imp=self.Z_U-self.Z_dom
         self.y_domestic=self.y.loc[self.a_country,self.a_country]
-        self.y_imports=self.y.loc[self.other_countries,self.a_country].groupby(level=1,axis=0,sort=False).sum()
-        self.y_exports=self.y.loc[self.a_country,self.other_countries].groupby(level=1,axis=1,sort=False).sum()
-        self.z_exports=self.Z.loc[self.a_country,self.other_countries].groupby(level=1,axis=1,sort=False).sum()
-
-
+        self.y_imports=self.y.loc[self.other_countries,self.a_country].groupby(level=1,sort=False).sum()
+        self.y_exports=self.y.loc[self.a_country,self.other_countries].T.groupby(level=1,sort=False).sum().T
+        self.z_exports=self.Z.loc[self.a_country,self.other_countries].T.groupby(level=1,sort=False).sum().T
