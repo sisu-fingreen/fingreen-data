@@ -4,14 +4,16 @@ jupyter: python3
 ---
 
 ```{python}
-#import os
+import os
 #from tqdm.notebook import tqdm,trange
+import sys
 import numpy as np
 import pandas as pd
-import seaborn as sns
+# import seaborn as sns
 #import math
 import pickle
 # from importlib import reload
+sys.path.append("python")
 from WIOD_IO import parse_WIOD
 # import sys
 # import floweaver as fw
@@ -24,22 +26,22 @@ from WIOD_IO import parse_WIOD
 ### output
 
 ```{python}
-os.chdir('objects/')
+# os.chdir('objects/')
 year=2010
-WIOD_cyp=pd.read_excel(f'C:/01_PhD/2nd project/WIOD_data/current_year_prices/WIOT{year}_Nov16_ROW.xlsb', engine='pyxlsb', header=[2,4], index_col=[0,2], sheet_name=f'{year}',skiprows=[5],nrows=2464)
+WIOD_cyp=pd.read_excel(f'source-data/wiod/WIOT{year}_Nov16_ROW.xlsb', engine='pyxlsb', header=[2,4], index_col=[0,2], sheet_name=f'{year}',skiprows=[5],nrows=2464)
 parse_WIOD.set_class_indices(WIOD_cyp)
 IO=parse_WIOD(IO=WIOD_cyp)
-pickle_out=open(f'WIOD_cyp_{year}.pickle','wb')
+pickle_out=open(f'objects/WIOD_cyp_{year}.pickle','wb')
 pickle.dump({'Z':IO.Z,'X':IO.x,'Y domestic':IO.y_domestic,'Y imports':IO.y_imports,'Y exports':IO.y_exports,'Z exports':IO.z_exports},pickle_out,protocol=-1)
 pickle_out.close()
 del IO
-    
+
 ```
 
 ```{python}
 year=2010
-os.chdir('C:/01_PhD/3rd project/python_codes/objects')
-IO=pickle.load(open(f'WIOD_cyp_{year}.pickle','rb'))
+# os.chdir('objects')
+IO=pickle.load(open(f'objects/WIOD_cyp_{year}.pickle','rb'))
 ```
 
 ```{python}
@@ -47,21 +49,43 @@ IO=pickle.load(open(f'WIOD_cyp_{year}.pickle','rb'))
 
 beta_index=['DOM','OTH']
 
-Z_dom_abr=IO['Z'].loc[parse_WIOD.a_country,parse_WIOD.other_countries].groupby(level=1,axis=1,sort=False).sum()
-Z_abr_abr=IO['Z'].loc[parse_WIOD.other_countries,parse_WIOD.other_countries].groupby(level=1,axis=1,sort=False).sum().groupby(level=1,axis=0,sort=False).sum()
-Z_imp=IO['Z'].loc[parse_WIOD.other_countries,parse_WIOD.a_country].groupby(level=1,axis=0,sort=False).sum()
+Z_dom_abr=IO['Z'].loc[parse_WIOD.a_country,parse_WIOD.other_countries].T.groupby(level=1,sort=False).sum().T
+Z_abr_abr=(
+    IO['Z']
+    .loc[parse_WIOD.other_countries,parse_WIOD.other_countries]
+    .T # transpose to group by columns, since axis=1 in groupby is deprecated
+    .groupby(level=1,sort=False)
+    .sum()
+    .T # transpose back
+    .groupby(level=1,sort=False)
+    .sum()
+)
+Z_imp=IO['Z'].loc[parse_WIOD.other_countries,parse_WIOD.a_country].groupby(level=1,sort=False).sum()
 Z_dom=IO['Z'].loc[parse_WIOD.a_country,parse_WIOD.a_country]
 
-
-Z_beta=pd.DataFrame(index=pd.MultiIndex.from_product([beta_index,parse_WIOD.sectors]),columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.sectors]))
+Z_beta=pd.DataFrame(
+    index=pd.MultiIndex.from_product([beta_index,parse_WIOD.sectors]),
+    columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.sectors]),
+    dtype="float64"
+    )
 Z_beta.loc['DOM','DOM']=Z_dom.values
 Z_beta.loc['DOM','OTH']=Z_dom_abr.values
 Z_beta.loc['OTH','DOM']=Z_imp.values
 Z_beta.loc['OTH','OTH']=Z_abr_abr.values
 #
 ## aggregate sectors
-Z_agg_rows=pd.DataFrame(columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.sectors]),index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]))
-Z_agg=pd.DataFrame(columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]))
+Z_agg_rows=pd.DataFrame(
+    columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.sectors]),
+    index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),
+    dtype="float64"
+    )
+
+Z_agg=pd.DataFrame(
+    columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),
+    index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),
+    dtype="float64"
+    )
+
 for i in beta_index: 
     for m in parse_WIOD.agg_ind.keys():
         Z_agg_rows.loc[(i,m),:]=Z_beta.loc[(i,parse_WIOD.agg_ind[m]),:].sum()
@@ -73,11 +97,11 @@ for i in beta_index:
 ```{python}
 # aggregate X
 
-x_agg=pd.DataFrame(index=pd.MultiIndex.from_product([parse_WIOD.regions,parse_WIOD.agg_ind.keys()]),columns=['output'])
+x_agg=pd.DataFrame(index=pd.MultiIndex.from_product([parse_WIOD.regions,parse_WIOD.agg_ind.keys()]), columns=['output'], dtype="float64")
 for i in parse_WIOD.regions:
     for m in parse_WIOD.agg_ind.keys():
         x_agg.loc[(i,m)]=IO['X'].loc[(i,parse_WIOD.agg_ind[m])].sum()
-x_beta=pd.DataFrame(index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),columns=['output'])
+x_beta=pd.DataFrame(index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),columns=['output'], dtype="float64")
 x_beta.loc['DOM']=x_agg.loc[parse_WIOD.a_country].values
 x_beta.loc['OTH']=x_agg.loc[parse_WIOD.other_countries].groupby(level=1,sort=False,axis=0).sum().values
 #
@@ -88,13 +112,13 @@ x_beta_inv.replace([np.inf,-np.inf],0,inplace=True)
 
 ```{python}
 A_beta=pd.DataFrame(columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]))
-A_beta=(Z_agg@np.diag(x_beta_inv.squeeze()))
+A_beta=(Z_agg @ np.diag(x_beta_inv.squeeze())) # matrix multiplication
 A_beta.columns=A_beta.index
 ```
 
 ```{python}
 A_dom_WIOD=A_beta.loc['DOM','DOM']
-A_imp_WIOD=A_beta.loc['OTH','DOM']/A_dom_WIOD
+A_imp_WIOD=A_beta.loc['OTH','DOM'] / A_dom_WIOD.replace(0, pd.NA)
 A_imp_WIOD.fillna(value=0,inplace=True)
 A_imp_WIOD.replace([np.inf,-np.inf],0,inplace=True)
 ```
@@ -102,7 +126,7 @@ A_imp_WIOD.replace([np.inf,-np.inf],0,inplace=True)
 # Merge with Locomotion
 
 ```{python}
-output=pd.read_excel(f'C:/01_PhD/3rd project/Data/Locomotion/economy_R.xlsx', header=[2], index_col=[0], sheet_name='output')
+output=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[2], index_col=[0], sheet_name='output')
 ```
 
 ```{python}
@@ -111,7 +135,7 @@ sectors=output.columns
 ```
 
 ```{python}
-output_vector=pd.DataFrame(index=pd.MultiIndex.from_product([regions,sectors]),columns=['output'])
+output_vector=pd.DataFrame(index=pd.MultiIndex.from_product([regions,sectors]), columns=['output'], dtype="float64")
 for r in regions:
     for s in sectors:
         output_vector.loc[(r,s)]=output.loc[r,s]
@@ -121,34 +145,67 @@ x=output_vector.squeeze()
 ##### A matrix
 
 ```{python}
-U=pd.read_excel(f'C:/01_PhD/3rd project/Data/Locomotion/economy_R.xlsx', header=[3], index_col=[0,1], sheet_name='amatrix')
+U=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[3], index_col=[0,1], sheet_name='amatrix')
 U.dropna(axis=0,how='any',inplace=True)
 
-A_impshare=pd.read_excel(f'C:/01_PhD/3rd project/Data/Locomotion/economy_R.xlsx', header=[2], index_col=[0,1], sheet_name='impshare')[sectors]
+A_impshare=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[2], index_col=[0,1], sheet_name='impshare')[sectors]
 A_impshare.dropna(axis=0,how='any',inplace=True)
 
 A_impshare.rename(index={'LROW':'ROW'},inplace=True)
 U.rename(index={'LROW':'ROW'},inplace=True)
 
+# Domestic technical coefficients - how much domestic inputs needed per unit of output
 A_dom=U*(1-A_impshare)
+# Import technical coefficients - how much imports needed per unit of output
 A_imp=U*A_impshare
 ```
 
 ```{python}
-A_imp_origin=pd.read_excel(f'C:/01_PhD/3rd project/Data/Locomotion/economy_R.xlsx', header=[1], index_col=[0,1,2], sheet_name='impshareorigin')[sectors]
+# This data contains the share of each country of origin in imports of a certain category to a certain use industry in a certain target country
+A_imp_origin=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[1], index_col=[0,1,2], sheet_name='impshareorigin')[sectors]
 ```
 
 ##### Create Multiregional A matrix
 
-```{python}
+```{comment}
 A_imp_multireg=pd.DataFrame(index=pd.MultiIndex.from_product([regions,sectors]),columns=pd.MultiIndex.from_product([regions,sectors]))
 for toreg in regions:
     for reg in regions:
         for sec in sectors:
             for tosec in sectors:
+                # How much of each origin country's imports of an origin industry are needed to produce a unit of output in a
+                # given target country in a given target industry
                 A_imp_multireg.loc[(reg,sec),(toreg,tosec)]=A_imp.loc[toreg].loc[sec,tosec]*A_imp_origin.loc[(reg,toreg,sec),tosec]
     if (A_imp_multireg[toreg].groupby(level=1,axis=0,sort=False).sum().values-A_imp.loc[toreg].values).max()>0.00001 or (A_imp_multireg[toreg].groupby(level=1,axis=0,sort=False).sum().values-A_imp.loc[toreg].values).max()<-0.00001:
         print(f'issue: {toreg}')
+```
+
+
+```{python}
+# Same as the above cell but use more performant joins instead of loops
+
+# First convert to long format with melt
+A_imp_origin_long = A_imp_origin.melt(var_name="to_ind", value_name="share_of_imports", ignore_index=False).set_index(["to_ind"], append=True)
+A_imp_long = A_imp.melt(var_name="to_ind", value_name="import_coefficient", ignore_index=False).set_index(["to_ind"], append=True)
+A_imp_long.index.names = ["dest", "ind", "to_ind"]
+
+# Join and calculate the multiregion import coefficient, i.e. how much of each origin country's imports of an origin
+# industry are needed to produce a unit of output in a given target country in a given target industry
+A_imp_multireg_long = A_imp_origin_long.join(A_imp_long) # joins by index values
+A_imp_multireg_long["multiregion_import_coefficient"] = A_imp_multireg_long["share_of_imports"] * A_imp_multireg_long["import_coefficient"]
+
+# Pivot wider to similar format as in original code using unstack
+# Droplevel simplifies the multilevel column, dropping a redundant level originating from the unstack
+# Finally order the indices and columns as in the original
+A_imp_multireg = (
+    A_imp_multireg_long[["multiregion_import_coefficient"]]
+    .unstack(level=["dest", "to_ind"])
+    .droplevel(0, axis="columns")
+    .reindex(labels=regions, axis="index", level="origin", copy=False)
+    .reindex(labels=sectors, axis="index", level="ind", copy=False)
+    .reindex(labels=regions, axis="columns", level="dest", copy=False)
+    .reindex(labels=sectors, axis="columns", level="to_ind", copy=False)
+)
 ```
 
 ```{python}
@@ -284,7 +341,7 @@ WIOD_LOCO_Z.fillna(value=0,inplace=True)
 #### Export
 
 ```{python}
-with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/WIOD_IT_clear_check.xlsx',engine='openpyxl',mode='a', if_sheet_exists='overlay') as writer:
+with pd.ExcelWriter('source-data/pisa-team-files/WIOD_IT_clear_check.xlsx',engine='openpyxl',mode='a', if_sheet_exists='overlay') as writer:
     #A_agg.to_excel(writer, sheet_name='A agg Locomotion')
     #WIOD_LOCO.to_excel(writer,sheet_name='A WIOD Loco hybrid')
     #x_WIOD_LOCO.to_excel(writer,sheet_name='x WIOD Loco hybrid')
@@ -319,7 +376,7 @@ for c in findem_cat:
 #### Locomotion
 
 ```{python}
-findem_loco=pd.read_excel(f'C:/01_PhD/3rd project/Data/Locomotion/economy_R.xlsx', header=[0,1], index_col=[0,1],skiprows=2, sheet_name='finaldemand').loc[:,(slice(None),domestic)]
+findem_loco=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[0,1], index_col=[0,1],skiprows=2, sheet_name='finaldemand').loc[:,(slice(None),domestic)]
 findem_loco=findem_loco.droplevel(axis=1,level=1)
 findem_loco.dropna(axis=0,how='all',inplace=True)
 findem_loco.dropna(axis=1,how='all',inplace=True)
@@ -333,7 +390,7 @@ oth_regions=[x for x in loco_regions if x not in domestic]
 ```
 
 ```{python}
-findem_loco_exp=pd.read_excel(f'C:/01_PhD/3rd project/Data/Locomotion/economy_R.xlsx', header=[0,1], index_col=[0,1],skiprows=2, sheet_name='finaldemand').loc[domestic,(slice(None),oth_regions)]
+findem_loco_exp=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[0,1], index_col=[0,1],skiprows=2, sheet_name='finaldemand').loc[domestic,(slice(None),oth_regions)]
 findem_loco_exp=findem_loco.droplevel(axis=0,level=0)
 findem_loco_exp.dropna(axis=0,how='all',inplace=True)
 findem_loco_exp.dropna(axis=1,how='all',inplace=True)
@@ -399,7 +456,7 @@ for e in ['dom','imp','exp']:
 
 ```{python}
 # Add intermediate exports
-WIOD_LOCO_Z=pd.read_excel(f'C:/01_PhD/3rd project/Data/python_data/WIOD_IT_clear_check.xlsx', header=[0,1], index_col=[0,1], sheet_name='Z WIOD Loco hybrid')
+WIOD_LOCO_Z=pd.read_excel(f'source-data/pisa-team-files/WIOD_IT_clear_check.xlsx', header=[0,1], index_col=[0,1], sheet_name='Z WIOD Loco hybrid')
 ```
 
 ```{python}
@@ -410,7 +467,7 @@ findem_wiod_loco.loc['exp','Z']=WIOD_LOCO_Z.loc['DOM','OTH'].sum(axis=1).values
 ##### Export
 
 ```{python}
-with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/WIOD_IT_clear_check.xlsx',engine='openpyxl',mode='a', if_sheet_exists='overlay') as writer:
+with pd.ExcelWriter('source-data/pisa-team-files/WIOD_IT_clear_check.xlsx',engine='openpyxl',mode='a', if_sheet_exists='overlay') as writer:
     findem_wiod_loco.to_excel(writer, sheet_name='findem wiod-loco')
 ```
 
@@ -421,11 +478,11 @@ with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/WIOD_IT_clear_check.
 ```
 
 ```{python}
-findem=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/WIOD_IT_clear_check.xlsx',sheet_name='findem wiod-loco',header=[0],index_col=[0,1])
+findem=pd.read_excel('source-data/pisa-team-files/WIOD_IT_clear_check.xlsx',sheet_name='findem wiod-loco',header=[0],index_col=[0,1])
 findem_dom=findem.loc['dom']
 findem_exp=findem.loc['exp']
 
-Z=pd.read_excel('C:/01_PhD/3rd project/Data/python_data/WIOD_IT_clear_check.xlsx',sheet_name='Z WIOD Loco hybrid',header=[0,1],index_col=[0,1])
+Z=pd.read_excel('source-data/pisa-team-files/WIOD_IT_clear_check.xlsx',sheet_name='Z WIOD Loco hybrid',header=[0,1],index_col=[0,1])
 Z_dom=Z.loc['DOM','DOM']
 Z_exp=Z.loc['DOM','OTH']
 Z_imp=Z.loc['OTH','DOM']
@@ -455,7 +512,7 @@ A_colsum=(A_new_imp+A_new_dom).sum()
 A_colsum['D3']
 
 # Locomotion value:
-U=pd.read_excel(f'C:/01_PhD/3rd project/Data/Locomotion/economy_R.xlsx', header=[3], index_col=[0,1], sheet_name='amatrix')
+U=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[3], index_col=[0,1], sheet_name='amatrix')
 U.dropna(axis=0,how='any',inplace=True)
 U.loc['ITA'].sum()['STEAM_HOT_WATER']
 
@@ -484,7 +541,7 @@ x_new_dom=pd.DataFrame(x_new_dom,index=A_new_dom.index).squeeze()
 ##### Export
 
 ```{python}
-with pd.ExcelWriter('C:/01_PhD/3rd project/Data/python_data/WIOD_IT_clear_check_adj_D3.xlsx',engine='openpyxl',mode='a', if_sheet_exists='overlay') as writer:
+with pd.ExcelWriter('source-data/pisa-team-files/WIOD_IT_clear_check_adj_D3.xlsx',engine='openpyxl',mode='a', if_sheet_exists='overlay') as writer:
     x_new_dom.to_excel(writer, sheet_name='x dom')
     A_new_dom.to_excel(writer,sheet_name='A dom')
     A_new_imp_share.to_excel(writer,sheet_name='A imp share')
