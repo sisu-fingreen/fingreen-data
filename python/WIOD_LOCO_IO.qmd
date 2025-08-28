@@ -336,12 +336,14 @@ notD=[x for x in agg_sector if x not in DsecLoc]
 ```{python}
 # So for the D columns, if WIOD is not zero, but Locomotion is, we simply split evenly between the sectors. For coherence we do the same for rows (but it does not seem to apply here).
 
-WIOD_LOCO_Z=pd.DataFrame(columns=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]),index=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]))
-for m in agg_region:
-    for n in agg_region:
-        for i in notD:
-            for j in notD:
-                WIOD_LOCO_Z.loc[(m,i),(n,j)]=Z_agg.loc[(m,i),(n,j)]
+WIOD_LOCO_Z = pd.DataFrame(
+    columns=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]),
+    index=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]),
+    dtype="float64"
+    )
+
+WIOD_LOCO_Z.loc[(agg_region, notD), (agg_region, notD)] = Z_agg.loc[(agg_region, notD), (agg_region, notD)]
+
 # ROWS
 for m in agg_region:
     for n in agg_region:
@@ -351,7 +353,7 @@ for m in agg_region:
                     WIOD_LOCO_Z.loc[(m,i),(n,j)]=Z_agg.loc[(m,'D'),(n,j)]/len(DsecLoc)
                 else:
                     WIOD_LOCO_Z.loc[(m,i),(n,j)]=Z_agg.loc[(m,'D'),(n,j)]*(Z_agg_loco.loc[(m,i),(n,j)]/(Z_agg_loco.loc[(m,DsecLoc),(n,j)].sum()))
-            
+
 # COLUMNS
 for m in agg_region:
     for n in agg_region:
@@ -368,6 +370,7 @@ for m in agg_region:
         for i in DsecLoc:
             for j in DsecLoc:
                 WIOD_LOCO_Z.loc[(m,i),(n,j)]=Z_agg.loc[(m,'D'),(n,'D')]*(Z_agg_loco.loc[(m,i),(n,j)]/(Z_agg_loco.loc[(m,DsecLoc),(n,DsecLoc)].sum().sum()))
+
 ```
 
 ```{python}
@@ -377,7 +380,7 @@ WIOD_LOCO_Z.fillna(value=0,inplace=True)
 #### Export
 
 ```{python}
-with pd.ExcelWriter('source-data/pisa-team-files/WIOD_IT_clear_check.xlsx',engine='openpyxl',mode='a', if_sheet_exists='overlay') as writer:
+with pd.ExcelWriter('source-data/pisa-team-files/WIOD_FI_clear_check.xlsx',engine='openpyxl',mode='w') as writer:
     #A_agg.to_excel(writer, sheet_name='A agg Locomotion')
     #WIOD_LOCO.to_excel(writer,sheet_name='A WIOD Loco hybrid')
     #x_WIOD_LOCO.to_excel(writer,sheet_name='x WIOD Loco hybrid')
