@@ -103,7 +103,7 @@ for i in parse_WIOD.regions:
         x_agg.loc[(i,m)]=IO['X'].loc[(i,parse_WIOD.agg_ind[m])].sum()
 x_beta=pd.DataFrame(index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),columns=['output'], dtype="float64")
 x_beta.loc['DOM']=x_agg.loc[parse_WIOD.a_country].values
-x_beta.loc['OTH']=x_agg.loc[parse_WIOD.other_countries].groupby(level=1,sort=False,axis=0).sum().values
+x_beta.loc['OTH']=x_agg.loc[parse_WIOD.other_countries].groupby(level=1,sort=False).sum().values
 #
 x_beta_inv=1/x_beta
 x_beta_inv.fillna(value=0,inplace=True)
@@ -111,14 +111,18 @@ x_beta_inv.replace([np.inf,-np.inf],0,inplace=True)
 ```
 
 ```{python}
-A_beta=pd.DataFrame(columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]))
-A_beta=(Z_agg @ np.diag(x_beta_inv.squeeze())) # matrix multiplication
+A_beta=pd.DataFrame(
+    columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),
+    index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),
+    dtype="float64"
+    )
+A_beta=(Z_agg @ np.diag(x_beta_inv.squeeze())) # @ is matrix multiplication
 A_beta.columns=A_beta.index
 ```
 
 ```{python}
 A_dom_WIOD=A_beta.loc['DOM','DOM']
-A_imp_WIOD=A_beta.loc['OTH','DOM'] / A_dom_WIOD.replace(0, pd.NA)
+A_imp_WIOD=A_beta.loc['OTH','DOM'] / A_dom_WIOD.replace(0, np.nan)
 A_imp_WIOD.fillna(value=0,inplace=True)
 A_imp_WIOD.replace([np.inf,-np.inf],0,inplace=True)
 ```
@@ -236,7 +240,7 @@ x_inv_diag=np.diag(x_inv)
 #### Aggregate
 
 ```{python}
-domestic=['ITA']
+domestic=['FIN']
 abroad=[x for x in regions if x not in domestic]
 ```
 
@@ -270,24 +274,56 @@ agg_sector={'A':secA,'B':secB,'C':secC,'C19':secC19, 'C29':secC29,'D1':secD1,'D2
 #Regions
 
 agg_region=['DOM','OTH']
-Z_region_agg=pd.DataFrame(index=pd.MultiIndex.from_product([agg_region,sectors]),columns=pd.MultiIndex.from_product([agg_region,sectors]))
+Z_region_agg=pd.DataFrame(
+    index=pd.MultiIndex.from_product([agg_region,sectors]),
+    columns=pd.MultiIndex.from_product([agg_region,sectors]),
+    dtype="float64"
+    )
 Z_region_agg.loc['DOM','DOM']=Z.loc[domestic,domestic].values
-Z_region_agg.loc['DOM','OTH']=Z.loc[domestic,abroad].groupby(level=1,axis=1,sort=False).sum().values
-Z_region_agg.loc['OTH','DOM']=Z.loc[abroad,domestic].groupby(level=1,axis=0,sort=False).sum().values
-Z_region_agg.loc['OTH','OTH']=Z.loc[abroad,abroad].groupby(level=1,axis=1,sort=False).sum().groupby(level=1,axis=0,sort=False).sum().values
+Z_region_agg.loc['DOM','OTH'] = (
+    Z
+    .loc[domestic,abroad]
+    .T
+    .groupby(level=1,sort=False)
+    .sum()
+    .T
+    .values
+)
+Z_region_agg.loc['OTH','DOM'] = Z.loc[abroad,domestic].groupby(level=1,sort=False).sum().values
+Z_region_agg.loc['OTH','OTH'] = (
+    Z
+    .loc[abroad,abroad]
+    .T
+    .groupby(level=1,sort=False)
+    .sum()
+    .T
+    .groupby(level=1,sort=False)
+    .sum()
+    .values
+)
 
 # Sectors
 
-Z_agg_rows=pd.DataFrame(columns=pd.MultiIndex.from_product([agg_region,sectors]),index=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]))
-Z_agg_loco=pd.DataFrame(columns=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]),index=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]))
+Z_agg_rows = pd.DataFrame(
+    columns=pd.MultiIndex.from_product([agg_region,sectors]),
+    index=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]),
+    dtype="float64"
+    )
+Z_agg_loco = pd.DataFrame(
+    columns=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]),
+    index=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]),
+    dtype="float64"
+    )
+
 for i in agg_region: 
     for m in agg_sector.keys():
         Z_agg_rows.loc[(i,m),:]=Z_region_agg.loc[(i,agg_sector[m]),:].sum()
+
 for i in agg_region: 
     for m in agg_sector.keys():
         Z_agg_loco.loc[:,(i,m)]=Z_agg_rows.loc[:,(i,agg_sector[m])].sum(axis=1)
 
-#
+
 ```
 
 # Link WIOD and Locomotion
