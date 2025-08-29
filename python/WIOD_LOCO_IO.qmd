@@ -392,21 +392,26 @@ with pd.ExcelWriter('source-data/pisa-team-files/WIOD_FI_clear_check.xlsx',engin
 #### WIOD
 
 ```{python}
-domestic=['ITA']
+domestic=['FIN']
 ```
 
 ```{python}
 findem_cat=['dom','imp','exp']
 findem_wiod={}
-findem_wiod['dom']=IO['Y domestic'].loc['ITA','ITA']
-findem_wiod['imp']=IO['Y imports']['ITA']
-findem_wiod['exp']=IO['Y exports'].loc['ITA']
+findem_wiod['dom']=IO['Y domestic'].loc['FIN','FIN']
+findem_wiod['imp']=IO['Y imports']['FIN']
+findem_wiod['exp']=IO['Y exports'].loc['FIN']
 findem_wiod['exp']['Z']=IO['Z exports'].sum(axis=1).values
 ```
 
 ```{python}
 # aggregate sectors:
-findem_wiod_agg=pd.DataFrame(index=pd.MultiIndex.from_product([findem_cat,parse_WIOD.agg_ind.keys()]),columns=findem_wiod['exp'].columns)
+findem_wiod_agg = pd.DataFrame(
+    index=pd.MultiIndex.from_product([findem_cat,parse_WIOD.agg_ind.keys()]),
+    columns=findem_wiod['exp'].columns,
+    dtype="float64"
+    )
+
 for c in findem_cat:
     for m in parse_WIOD.agg_ind.keys():
         findem_wiod_agg.loc[(c,m),:]=findem_wiod[c].loc[parse_WIOD.agg_ind[m]].sum()
@@ -446,20 +451,36 @@ fd_origin={'H':CONS_h,'G':CONS_g,'GFCF':GFCF,'INT':INVEN}
 ```
 
 ```{python}
-findem_loco_dom_imp=pd.DataFrame(index=pd.MultiIndex.from_product([['dom','imp','exp'],loco_sectors]),columns=findem_loco.columns)
-findem_loco_dom_imp.loc['imp']=findem_loco.loc[oth_regions].groupby(level=1,axis=0,sort=False).sum().values
-findem_loco_dom_imp.loc['dom']=findem_loco.loc[domestic].values
-findem_loco_dom_imp.loc['exp']=findem_loco_exp.groupby(level=0,axis=0,sort=False).sum().values
+findem_loco_dom_imp = pd.DataFrame(
+    index=pd.MultiIndex.from_product([['dom','imp','exp'],loco_sectors]),
+    columns=findem_loco.columns,
+    dtype="float64"
+    )
 
-findem_loco_cat=pd.DataFrame(index=pd.MultiIndex.from_product([['dom','imp','exp'],loco_sectors]),columns=fd_origin.keys())
+findem_loco_dom_imp.loc['imp']=findem_loco.loc[oth_regions].groupby(level=1,sort=False).sum().values
+findem_loco_dom_imp.loc['dom']=findem_loco.loc[domestic].values
+findem_loco_dom_imp.loc['exp']=findem_loco_exp.groupby(level=0,sort=False).sum().values
+
+findem_loco_cat = pd.DataFrame(
+    index=pd.MultiIndex.from_product([['dom','imp','exp'],loco_sectors]),
+    columns=fd_origin.keys(),
+    dtype="float64"
+    )
+
 for c in fd_origin.keys():
     findem_loco_cat[c]=findem_loco_dom_imp[fd_origin[c]].sum(axis=1)
+
 ```
 
 #### Merge
 
 ```{python}
-findem_loco_cat_agg_sec=pd.DataFrame(index=pd.MultiIndex.from_product([['dom','imp','exp'],agg_sector.keys()]),columns=fd_origin.keys())
+findem_loco_cat_agg_sec = pd.DataFrame(
+    index=pd.MultiIndex.from_product([['dom','imp','exp'],agg_sector.keys()]),
+    columns=fd_origin.keys(),
+    dtype="float64"
+    )
+
 for i in ['dom','imp','exp']: 
     for m in agg_sector.keys():
         findem_loco_cat_agg_sec.loc[(i,m)]=findem_loco_cat.loc[(i,agg_sector[m]),:].sum()
@@ -475,7 +496,12 @@ fd_origin={'H':CONS_h,'G':CONS_g,'GFCF':GFCF,'INT':INVEN}
 ```
 
 ```{python}
-findem_wiod_cat=pd.DataFrame(index=findem_wiod_agg.index,columns=fd_origin.keys())
+findem_wiod_cat = pd.DataFrame(
+    index=findem_wiod_agg.index,
+    columns=fd_origin.keys(),
+    dtype="float64"
+    )
+
 for c in fd_origin.keys():
     findem_wiod_cat[c]=findem_wiod_agg[fd_origin[c]].sum(axis=1)
 ```
@@ -484,7 +510,14 @@ for c in fd_origin.keys():
 DsecLoc=['D1','D2','D3']
 notD=[x for x in agg_sector if x not in DsecLoc]
 
-findem_wiod_loco=pd.DataFrame(0,index=pd.MultiIndex.from_product([['dom','imp','exp'],agg_sector.keys()]),columns=fd_origin.keys())
+findem_wiod_loco = pd.DataFrame(
+    data=0,
+    index=pd.MultiIndex.from_product([['dom','imp','exp'],agg_sector.keys()]),
+    columns=fd_origin.keys(),
+    dtype="float64"
+    )
+
+# Split wiod D-sector according to the ratios in findem_loco_cat_agg_sec, otherwise use aggregated wiod values
 for e in ['dom','imp','exp']:
     for i in notD:
         findem_wiod_loco.loc[(e,i)]=findem_wiod_cat.loc[(e,i)]
@@ -495,7 +528,7 @@ for e in ['dom','imp','exp']:
 
 ```{python}
 # Add intermediate exports
-WIOD_LOCO_Z=pd.read_excel(f'source-data/pisa-team-files/WIOD_IT_clear_check.xlsx', header=[0,1], index_col=[0,1], sheet_name='Z WIOD Loco hybrid')
+WIOD_LOCO_Z=pd.read_excel(f'source-data/pisa-team-files/WIOD_FI_clear_check.xlsx', header=[0,1], index_col=[0,1], sheet_name='Z WIOD Loco hybrid')
 ```
 
 ```{python}
@@ -506,22 +539,24 @@ findem_wiod_loco.loc['exp','Z']=WIOD_LOCO_Z.loc['DOM','OTH'].sum(axis=1).values
 ##### Export
 
 ```{python}
-with pd.ExcelWriter('source-data/pisa-team-files/WIOD_IT_clear_check.xlsx',engine='openpyxl',mode='a', if_sheet_exists='overlay') as writer:
+with pd.ExcelWriter('source-data/pisa-team-files/WIOD_FI_clear_check.xlsx',engine='openpyxl',mode='a', if_sheet_exists='overlay') as writer:
     findem_wiod_loco.to_excel(writer, sheet_name='findem wiod-loco')
 ```
 
 # A with Z + findem
 
-```{python}
-# There is a discrepancy within D between Z+findem and output due to the merging of the different datasets
-```
+There is a discrepancy within D between Z+findem and output due to the merging of the different datasets
 
 ```{python}
-findem=pd.read_excel('source-data/pisa-team-files/WIOD_IT_clear_check.xlsx',sheet_name='findem wiod-loco',header=[0],index_col=[0,1])
+findem=pd.read_excel('source-data/pisa-team-files/WIOD_FI_clear_check.xlsx',sheet_name='findem wiod-loco',header=[0],index_col=[0,1])
 findem_dom=findem.loc['dom']
 findem_exp=findem.loc['exp']
 
-Z=pd.read_excel('source-data/pisa-team-files/WIOD_IT_clear_check.xlsx',sheet_name='Z WIOD Loco hybrid',header=[0,1],index_col=[0,1])
+Z=pd.read_excel('source-data/pisa-team-files/WIOD_FI_clear_check.xlsx',sheet_name='Z WIOD Loco hybrid',header=[0,1],index_col=[0,1])
+
+# This is read as int, convert to float64
+Z.loc["DOM", "T"] = Z.loc["DOM", "T"].astype("float64")
+
 Z_dom=Z.loc['DOM','DOM']
 Z_exp=Z.loc['DOM','OTH']
 Z_imp=Z.loc['OTH','DOM']
@@ -534,10 +569,10 @@ x_new_dom_inv=1/x_new_dom
 x_new_dom_inv.fillna(value=0,inplace=True)
 x_new_dom_inv.replace([np.inf,-np.inf],0,inplace=True)
 
-A_new_dom=(Z_dom@np.diag(x_new_dom_inv.squeeze()))
+A_new_dom=(Z_dom @ np.diag(x_new_dom_inv.squeeze()))
 A_new_dom.columns=A_new_dom.index
 
-A_new_imp=(Z_imp@np.diag(x_new_dom_inv.squeeze()))
+A_new_imp=(Z_imp @ np.diag(x_new_dom_inv.squeeze()))
 A_new_imp.columns=A_new_imp.index
 
 A_new_imp_share=A_new_imp/A_new_dom
@@ -553,9 +588,9 @@ A_colsum['D3']
 # Locomotion value:
 U=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[3], index_col=[0,1], sheet_name='amatrix')
 U.dropna(axis=0,how='any',inplace=True)
-U.loc['ITA'].sum()['STEAM_HOT_WATER']
+U.loc['FIN'].sum()['STEAM_HOT_WATER']
 
-D3_adj_fac=U.loc['ITA'].sum()['STEAM_HOT_WATER']/A_colsum['D3']
+D3_adj_fac=U.loc['FIN'].sum()['STEAM_HOT_WATER']/A_colsum['D3']
 ```
 
 ```{python}
@@ -569,6 +604,7 @@ final_demand_domestic=(findem_dom+findem_exp)[['H','G','GFCF','Z']].sum(axis=1)
 ```
 
 ```{python}
+# correct X and Z based on the new final demand with inventories excluded
 L_dom_new=np.linalg.inv((np.identity(len(A_new_dom))-A_new_dom).to_numpy())
 x_new_dom=L_dom_new@final_demand_domestic
 x_new_dom_diag=np.diag(x_new_dom)
@@ -580,7 +616,7 @@ x_new_dom=pd.DataFrame(x_new_dom,index=A_new_dom.index).squeeze()
 ##### Export
 
 ```{python}
-with pd.ExcelWriter('source-data/pisa-team-files/WIOD_IT_clear_check_adj_D3.xlsx',engine='openpyxl',mode='a', if_sheet_exists='overlay') as writer:
+with pd.ExcelWriter('source-data/pisa-team-files/WIOD_FI_clear_check_adj_D3.xlsx',engine='openpyxl',mode='w') as writer:
     x_new_dom.to_excel(writer, sheet_name='x dom')
     A_new_dom.to_excel(writer,sheet_name='A dom')
     A_new_imp_share.to_excel(writer,sheet_name='A imp share')
