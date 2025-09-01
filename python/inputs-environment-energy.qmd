@@ -27,8 +27,62 @@ import pandas as pd
 
 ```{python}
 # As we only have total supply, we use total demand. We have to get rid of double counting later
-supply=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010.xlsx', header=[10], index_col=[0], sheet_name='Sheet 1',nrows=39)
-use=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010.xlsx', header=[10], index_col=[0], sheet_name='Sheet 2',nrows=39)
+supply=pd.read_excel('source-data/pisa-team-files/PEFA_FI_2011.xlsx', header=[10], index_col=[0], sheet_name='Sheet 1',nrows=39)
+use=pd.read_excel('source-data/pisa-team-files/PEFA_FI_2011.xlsx', header=[10], index_col=[0], sheet_name='Sheet 2',nrows=39)
+```
+
+```{comment}
+# Load eurostat vocabularies for data validation
+
+import eurostat
+pefa_pars = eurostat.get_pars("env_ac_pefasu")
+pefa_use = eurostat.get_data_df(
+    "env_ac_pefasu",
+    filter_pars={"geo": "FI", "stk_flow": "USE", "startPeriod": 2011, "endPeriod": 2011}
+)
+prod_nrg_vocabulary = (
+    pd.read_csv("https://dd.eionet.europa.eu/vocabulary/eurostat/prod_nrg/csv")
+    .query("Status == 'valid'")
+)
+
+prod_nrg_rename = {"Notation": "prod_nrg", "Label": "prod_nrg_description"}
+prod_nrg_vocabulary = prod_nrg_vocabulary.rename(columns=prod_nrg_rename)[[*prod_nrg_rename.values()]]
+
+nace_vocabulary = (
+    pd.read_csv("https://dd.eionet.europa.eu/vocabulary/eurostat/nace_r2/csv")
+    .query("Status == 'valid'")
+)
+
+nace_rename = {"Notation": "nace_r2", "Label": "nace_r2_description"}
+nace_vocabulary = nace_vocabulary.rename(columns=nace_rename)[[*nace_rename.values()]]
+
+```
+
+```{comment}
+
+# make sure the columns are equal to the original ITA version
+supply2=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010.xlsx', header=[10], index_col=[0], sheet_name='Sheet 1',nrows=39)
+use2=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010.xlsx', header=[10], index_col=[0], sheet_name='Sheet 2',nrows=39)
+
+def get_real_cols(df, filter_if_startswith="Unnamed"):
+    cols = df.columns.values.tolist()
+    real_cols = [x for x in cols if not x.startswith("Unnamed")]
+    return real_cols
+
+ita_supply_real_cols = get_real_cols(supply2)
+fin_supply_real_cols = get_real_cols(supply)
+list(set(fin_supply_real_cols) - set(ita_supply_real_cols))
+list(set(ita_supply_real_cols) - set(fin_supply_real_cols))
+
+ita_use_real_cols = get_real_cols(use2)
+fin_use_real_cols = get_real_cols(use)
+list(set(fin_use_real_cols) - set(ita_use_real_cols))
+list(set(ita_use_real_cols) - set(fin_use_real_cols))
+
+# Check whether the nace data make sense by looking at the levels
+# Indeed we can verify that there are no double covering of industries
+foo = nace_vocabulary[nace_vocabulary["nace_r2_description"].isin(ita_supply_real_cols)]
+
 ```
 
 ```{python}
