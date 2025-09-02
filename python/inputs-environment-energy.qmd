@@ -26,9 +26,101 @@ import pandas as pd
 ### Load and aggregate PEFA
 
 ```{python}
+
+# Column names, for defining the right datatypes
+coltype_dict = {
+    "Total - all NACE activities": "float64",
+    "Crop and animal production, hunting and related service activities": "float64",
+    "Forestry and logging": "float64",
+    "Fishing and aquaculture": "float64",
+    "Mining and quarrying": "float64",
+    "Manufacture of food products; beverages and tobacco products": "float64",
+    "Manufacture of textiles, wearing apparel, leather and related products": "float64",
+    "Manufacture of wood and of products of wood and cork, except furniture; manufacture of articles of straw and plaiting materials": "float64",
+    "Manufacture of paper and paper products": "float64",
+    "Printing and reproduction of recorded media": "float64",
+    "Manufacture of coke and refined petroleum products": "float64",
+    "Manufacture of chemicals and chemical products": "float64",
+    "Manufacture of basic pharmaceutical products and pharmaceutical preparations": "float64",
+    "Manufacture of rubber and plastic products": "float64",
+    "Manufacture of other non-metallic mineral products": "float64",
+    "Manufacture of basic metals": "float64",
+    "Manufacture of fabricated metal products, except machinery and equipment": "float64",
+    "Manufacture of computer, electronic and optical products": "float64",
+    "Manufacture of electrical equipment": "float64",
+    "Manufacture of machinery and equipment n.e.c.": "float64",
+    "Manufacture of motor vehicles, trailers and semi-trailers": "float64",
+    "Manufacture of other transport equipment": "float64",
+    "Manufacture of furniture; other manufacturing": "float64",
+    "Repair and installation of machinery and equipment": "float64",
+    "Electricity, gas, steam and air conditioning supply": "float64",
+    "Water collection, treatment and supply": "float64",
+    "Sewerage, waste management, remediation activities": "float64",
+    "Construction": "float64",
+    "Wholesale and retail trade and repair of motor vehicles and motorcycles": "float64",
+    "Wholesale trade, except of motor vehicles and motorcycles": "float64",
+    "Retail trade, except of motor vehicles and motorcycles": "float64",
+    "Land transport and transport via pipelines": "float64",
+    "Water transport": "float64",
+    "Air transport": "float64",
+    "Warehousing and support activities for transportation": "float64",
+    "Postal and courier activities": "float64",
+    "Accommodation and food service activities": "float64",
+    "Publishing activities": "float64",
+    "Motion picture, video, television programme production; programming and broadcasting activities": "float64",
+    "Telecommunications": "float64",
+    "Computer programming, consultancy, and information service activities": "float64",
+    "Financial service activities, except insurance and pension funding": "float64",
+    "Insurance, reinsurance and pension funding, except compulsory social security": "float64",
+    "Activities auxiliary to financial services and insurance activities": "float64",
+    "Real estate activities": "float64",
+    "Legal and accounting activities; activities of head offices; management consultancy activities": "float64",
+    "Architectural and engineering activities; technical testing and analysis": "float64",
+    "Scientific research and development": "float64",
+    "Advertising and market research": "float64",
+    "Other professional, scientific and technical activities; veterinary activities": "float64",
+    "Rental and leasing activities": "float64",
+    "Employment activities": "float64",
+    "Travel agency, tour operator and other reservation service and related activities": "float64",
+    "Security and investigation, service and landscape, office administrative and support activities": "float64",
+    "Public administration and defence; compulsory social security": "float64",
+    "Education": "float64",
+    "Human health activities": "float64",
+    "Residential care activities and social work activities without accommodation": "float64",
+    "Creative, arts and entertainment activities; libraries, archives, museums and other cultural activities; gambling and betting activities": "float64",
+    "Sports activities and amusement and recreation activities": "float64",
+    "Activities of membership organisations": "float64",
+    "Repair of computers and personal and household goods": "float64",
+    "Other personal service activities": "float64",
+    "Activities of households as employers; undifferentiated goods- and services-producing activities of households for own use": "float64",
+    "Activities of extraterritorial organisations and bodies": "float64",
+    "Total activities by households": "float64",
+    "Changes in inventories and produced assets": "float64",
+    "Statistical discrepancy between supply and use of energy for total activities": "float64",
+    "Economic activities of the rest of the world": "float64",
+    "Environment": "float64",
+    "Energy flows over all activities": "float64",
+}
+
 # As we only have total supply, we use total demand. We have to get rid of double counting later
-supply=pd.read_excel('source-data/pisa-team-files/PEFA_FI_2011.xlsx', header=[10], index_col=[0], sheet_name='Sheet 1',nrows=39)
-use=pd.read_excel('source-data/pisa-team-files/PEFA_FI_2011.xlsx', header=[10], index_col=[0], sheet_name='Sheet 2',nrows=39)
+supply = pd.read_excel(
+    "source-data/pisa-team-files/PEFA_FI_2011.xlsx",
+    header=[10],
+    index_col=[0],
+    sheet_name="Sheet 1",
+    nrows=39,
+    dtype=coltype_dict,
+    na_values=[":", "m"]
+)
+use = pd.read_excel(
+    "source-data/pisa-team-files/PEFA_FI_2011.xlsx",
+    header=[10],
+    index_col=[0],
+    sheet_name="Sheet 2",
+    nrows=39,
+    dtype=coltype_dict,
+    na_values=[":","m"]
+)
 ```
 
 ```{comment}
@@ -60,14 +152,18 @@ nace_vocabulary = nace_vocabulary.rename(columns=nace_rename)[[*nace_rename.valu
 
 ```{comment}
 
-# make sure the columns are equal to the original ITA version
-supply2=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010.xlsx', header=[10], index_col=[0], sheet_name='Sheet 1',nrows=39)
-use2=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010.xlsx', header=[10], index_col=[0], sheet_name='Sheet 2',nrows=39)
-
 def get_real_cols(df, filter_if_startswith="Unnamed"):
     cols = df.columns.values.tolist()
     real_cols = [x for x in cols if not x.startswith("Unnamed")]
     return real_cols
+
+```
+
+```{comment}
+
+# make sure the columns are equal to the original ITA version
+supply2=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010.xlsx', header=[10], index_col=[0], sheet_name='Sheet 1',nrows=39)
+use2=pd.read_excel('source-data/pisa-team-files/PEFA_IT_2010.xlsx', header=[10], index_col=[0], sheet_name='Sheet 2',nrows=39)
 
 ita_supply_real_cols = get_real_cols(supply2)
 fin_supply_real_cols = get_real_cols(supply)
@@ -114,23 +210,24 @@ E_sectors_nonbio=[x for x in E_sectors if x not in ['A']]
 ```
 
 ```{python}
-supply.dropna(axis=0,how='all',inplace=True)
-supply.dropna(axis=1,how='any',inplace=True)
-supply.drop(labels=['Unnamed: 136'],axis=1,inplace=True)
+#supply.dropna(axis=0,how='all',inplace=True)
+supply = supply.drop(labels="PROD_NRG (Labels)", axis="index")
+supply = supply[coltype_dict.keys()]
 
-use.dropna(axis=0,how='all',inplace=True)
-use.dropna(axis=1,how='any',inplace=True)
+use = use.drop(labels="PROD_NRG (Labels)", axis="index")
+use = use[coltype_dict.keys()]
 
 disagg_sectors=[x for x in supply.columns if x not in ['Total - all NACE activities','Changes in inventories and produced assets','Statistical discrepancy between supply and use of energy for total activities','Economic activities of the rest of the world', 'Environment','Energy flows over all activities','Activities of extraterritorial organisations and bodies','Total activities by households']]
 ```
 
-```{python}
-supply_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products_PEFA)
+```{comment}
+# Apparently this is not used, the dfs are defined below
+supply_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products_PEFA,dtype="float64")
 for m in E_products_PEFA:
     for i in agg_ind.keys():
         supply_sec_agg.loc[i,m]=supply.loc[m,agg_ind[i]].sum()
 
-use_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products_PEFA)
+use_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products_PEFA,dtype="float64")
 for m in E_products_PEFA:
     for i in agg_ind.keys():
         use_sec_agg.loc[i,m]=use.loc[m,agg_ind[i]].sum()
@@ -165,7 +262,7 @@ E_agg_no_nuclear=[x for x in E_agg if x not in ['Nuclear fuel']]
 ```
 
 ```{python}
-supply_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products)
+supply_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products,dtype="float64")
 for m in E_products:
     for i in agg_ind.keys():
 # If only applies to E balance aggregation
@@ -174,7 +271,7 @@ for m in E_products:
         else:
             supply_sec_agg.loc[i,m]=supply.loc[m,agg_ind[i]].sum()
 
-use_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products)
+use_sec_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_products,dtype="float64")
 for m in E_products:
     for i in agg_ind.keys():
 # If only applies to E balance aggregation
@@ -185,24 +282,33 @@ for m in E_products:
 ```
 
 ```{python}
-supply_sec_agg_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_agg)
+supply_sec_agg_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_agg,dtype="float64")
 for m in E_agg:
     supply_sec_agg_E_agg[m]=supply_sec_agg[E_products_agg[m]].sum(axis=1)
 
-use_sec_agg_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_agg)
+use_sec_agg_E_agg=pd.DataFrame(index=agg_ind.keys(),columns=E_agg,dtype="float64")
 for m in E_agg:
     use_sec_agg_E_agg[m]=use_sec_agg[E_products_agg[m]].sum(axis=1)
 ```
 
 ```{python}
 # with E balance aggregation
-oth_use=pd.DataFrame(index=E_products,columns=['Total activities by households','Changes in inventories and produced assets','Statistical discrepancy between supply and use of energy for total activities','Economic activities of the rest of the world'])
+oth_use_columns = [
+    "Total activities by households",
+    "Changes in inventories and produced assets",
+    "Statistical discrepancy between supply and use of energy for total activities",
+    "Economic activities of the rest of the world",
+]
+
+oth_use = pd.DataFrame(index=E_products, columns=oth_use_columns, dtype="float64")
 for i in E_products:
-    if i in ['Gas oil and diesel oil']:
-        oth_use.loc[i]=use.loc[E_products_dict[i],['Total activities by households','Changes in inventories and produced assets','Statistical discrepancy between supply and use of energy for total activities','Economic activities of the rest of the world']].sum()
+    if i in ["Gas oil and diesel oil"]:
+        oth_use.loc[i] = use.loc[E_products_dict[i], oth_use_columns].sum()
     else:
-        oth_use.loc[i]=use.loc[i,['Total activities by households','Changes in inventories and produced assets','Statistical discrepancy between supply and use of energy for total activities','Economic activities of the rest of the world']]
-findem=oth_use[['Total activities by households','Economic activities of the rest of the world']]
+        oth_use.loc[i] = use.loc[i, oth_use_columns]
+findem = oth_use[
+    ["Total activities by households", "Economic activities of the rest of the world"]
+]
 ```
 
 ### Net supply, use and own use
