@@ -5,13 +5,16 @@ jupyter: python3
 
 ```{python}
 import os
-#from tqdm.notebook import tqdm,trange
+
+# from tqdm.notebook import tqdm,trange
 import sys
 import numpy as np
 import pandas as pd
+
 # import seaborn as sns
-#import math
+# import math
 import pickle
+
 # from importlib import reload
 sys.path.append("python")
 from WIOD_IO import parse_WIOD
@@ -27,146 +30,212 @@ from WIOD_IO import parse_WIOD
 
 ```{python}
 # os.chdir('objects/')
-year=2010
-WIOD_cyp=pd.read_excel(f'source-data/wiod/WIOT{year}_Nov16_ROW.xlsb', engine='pyxlsb', header=[2,4], index_col=[0,2], sheet_name=f'{year}',skiprows=[5],nrows=2464)
+year = 2010
+WIOD_cyp = pd.read_excel(
+    f"source-data/wiod/WIOT{year}_Nov16_ROW.xlsb",
+    engine="pyxlsb",
+    header=[2, 4],
+    index_col=[0, 2],
+    sheet_name=f"{year}",
+    skiprows=[5],
+    nrows=2464,
+)
 parse_WIOD.set_class_indices(WIOD_cyp)
-IO=parse_WIOD(IO=WIOD_cyp)
-pickle_out=open(f'objects/WIOD_cyp_{year}.pickle','wb')
-pickle.dump({'Z':IO.Z,'X':IO.x,'Y domestic':IO.y_domestic,'Y imports':IO.y_imports,'Y exports':IO.y_exports,'Z exports':IO.z_exports},pickle_out,protocol=-1)
+IO = parse_WIOD(IO=WIOD_cyp)
+pickle_out = open(f"objects/WIOD_cyp_{year}.pickle", "wb")
+pickle.dump(
+    {
+        "Z": IO.Z,
+        "X": IO.x,
+        "Y domestic": IO.y_domestic,
+        "Y imports": IO.y_imports,
+        "Y exports": IO.y_exports,
+        "Z exports": IO.z_exports,
+    },
+    pickle_out,
+    protocol=-1,
+)
 pickle_out.close()
 del IO
 
 ```
 
 ```{python}
-year=2010
+year = 2010
 # os.chdir('objects')
-IO=pickle.load(open(f'objects/WIOD_cyp_{year}.pickle','rb'))
+IO = pickle.load(open(f"objects/WIOD_cyp_{year}.pickle", "rb"))
 ```
 
 ```{python}
 # aggregate Z
 
-beta_index=['DOM','OTH']
+beta_index = ["DOM", "OTH"]
 
-Z_dom_abr=IO['Z'].loc[parse_WIOD.a_country,parse_WIOD.other_countries].T.groupby(level=1,sort=False).sum().T
-Z_abr_abr=(
-    IO['Z']
-    .loc[parse_WIOD.other_countries,parse_WIOD.other_countries]
-    .T # transpose to group by columns, since axis=1 in groupby is deprecated
-    .groupby(level=1,sort=False)
+Z_dom_abr = (
+    IO["Z"]
+    .loc[parse_WIOD.a_country, parse_WIOD.other_countries]
+    .T.groupby(level=1, sort=False)
     .sum()
-    .T # transpose back
-    .groupby(level=1,sort=False)
+    .T
+)
+Z_abr_abr = (
+    IO["Z"]
+    .loc[parse_WIOD.other_countries, parse_WIOD.other_countries]
+    .T.groupby(  # transpose to group by columns, since axis=1 in groupby is deprecated
+        level=1, sort=False
+    )
+    .sum()
+    .T.groupby(level=1, sort=False)  # transpose back
     .sum()
 )
-Z_imp=IO['Z'].loc[parse_WIOD.other_countries,parse_WIOD.a_country].groupby(level=1,sort=False).sum()
-Z_dom=IO['Z'].loc[parse_WIOD.a_country,parse_WIOD.a_country]
+Z_imp = (
+    IO["Z"]
+    .loc[parse_WIOD.other_countries, parse_WIOD.a_country]
+    .groupby(level=1, sort=False)
+    .sum()
+)
+Z_dom = IO["Z"].loc[parse_WIOD.a_country, parse_WIOD.a_country]
 
-Z_beta=pd.DataFrame(
-    index=pd.MultiIndex.from_product([beta_index,parse_WIOD.sectors]),
-    columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.sectors]),
-    dtype="float64"
-    )
-Z_beta.loc['DOM','DOM']=Z_dom.values
-Z_beta.loc['DOM','OTH']=Z_dom_abr.values
-Z_beta.loc['OTH','DOM']=Z_imp.values
-Z_beta.loc['OTH','OTH']=Z_abr_abr.values
+Z_beta = pd.DataFrame(
+    index=pd.MultiIndex.from_product([beta_index, parse_WIOD.sectors]),
+    columns=pd.MultiIndex.from_product([beta_index, parse_WIOD.sectors]),
+    dtype="float64",
+)
+Z_beta.loc["DOM", "DOM"] = Z_dom.values
+Z_beta.loc["DOM", "OTH"] = Z_dom_abr.values
+Z_beta.loc["OTH", "DOM"] = Z_imp.values
+Z_beta.loc["OTH", "OTH"] = Z_abr_abr.values
 #
 ## aggregate sectors
-Z_agg_rows=pd.DataFrame(
-    columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.sectors]),
-    index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),
-    dtype="float64"
-    )
+Z_agg_rows = pd.DataFrame(
+    columns=pd.MultiIndex.from_product([beta_index, parse_WIOD.sectors]),
+    index=pd.MultiIndex.from_product([beta_index, parse_WIOD.agg_ind.keys()]),
+    dtype="float64",
+)
 
-Z_agg=pd.DataFrame(
-    columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),
-    index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),
-    dtype="float64"
-    )
+Z_agg = pd.DataFrame(
+    columns=pd.MultiIndex.from_product([beta_index, parse_WIOD.agg_ind.keys()]),
+    index=pd.MultiIndex.from_product([beta_index, parse_WIOD.agg_ind.keys()]),
+    dtype="float64",
+)
 
-for i in beta_index: 
+for i in beta_index:
     for m in parse_WIOD.agg_ind.keys():
-        Z_agg_rows.loc[(i,m),:]=Z_beta.loc[(i,parse_WIOD.agg_ind[m]),:].sum()
-    for i in beta_index: 
+        Z_agg_rows.loc[(i, m), :] = Z_beta.loc[(i, parse_WIOD.agg_ind[m]), :].sum()
+    for i in beta_index:
         for m in parse_WIOD.agg_ind.keys():
-            Z_agg.loc[:,(i,m)]=Z_agg_rows.loc[:,(i,parse_WIOD.agg_ind[m])].sum(axis=1)
+            Z_agg.loc[:, (i, m)] = Z_agg_rows.loc[:, (i, parse_WIOD.agg_ind[m])].sum(
+                axis=1
+            )
 ```
 
 ```{python}
 # aggregate X
 
-x_agg=pd.DataFrame(index=pd.MultiIndex.from_product([parse_WIOD.regions,parse_WIOD.agg_ind.keys()]), columns=['output'], dtype="float64")
+x_agg = pd.DataFrame(
+    index=pd.MultiIndex.from_product([parse_WIOD.regions, parse_WIOD.agg_ind.keys()]),
+    columns=["output"],
+    dtype="float64",
+)
 for i in parse_WIOD.regions:
     for m in parse_WIOD.agg_ind.keys():
-        x_agg.loc[(i,m)]=IO['X'].loc[(i,parse_WIOD.agg_ind[m])].sum()
-x_beta=pd.DataFrame(index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),columns=['output'], dtype="float64")
-x_beta.loc['DOM']=x_agg.loc[parse_WIOD.a_country].values
-x_beta.loc['OTH']=x_agg.loc[parse_WIOD.other_countries].groupby(level=1,sort=False).sum().values
+        x_agg.loc[(i, m)] = IO["X"].loc[(i, parse_WIOD.agg_ind[m])].sum()
+x_beta = pd.DataFrame(
+    index=pd.MultiIndex.from_product([beta_index, parse_WIOD.agg_ind.keys()]),
+    columns=["output"],
+    dtype="float64",
+)
+x_beta.loc["DOM"] = x_agg.loc[parse_WIOD.a_country].values
+x_beta.loc["OTH"] = (
+    x_agg.loc[parse_WIOD.other_countries].groupby(level=1, sort=False).sum().values
+)
 #
-x_beta_inv=1/x_beta
-x_beta_inv.fillna(value=0,inplace=True)
-x_beta_inv.replace([np.inf,-np.inf],0,inplace=True)
+x_beta_inv = 1 / x_beta
+x_beta_inv.fillna(value=0, inplace=True)
+x_beta_inv.replace([np.inf, -np.inf], 0, inplace=True)
 ```
 
 ```{python}
-A_beta=pd.DataFrame(
-    columns=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),
-    index=pd.MultiIndex.from_product([beta_index,parse_WIOD.agg_ind.keys()]),
-    dtype="float64"
-    )
-A_beta=(Z_agg @ np.diag(x_beta_inv.squeeze())) # @ is matrix multiplication
-A_beta.columns=A_beta.index
+A_beta = pd.DataFrame(
+    columns=pd.MultiIndex.from_product([beta_index, parse_WIOD.agg_ind.keys()]),
+    index=pd.MultiIndex.from_product([beta_index, parse_WIOD.agg_ind.keys()]),
+    dtype="float64",
+)
+A_beta = Z_agg @ np.diag(x_beta_inv.squeeze())  # @ is matrix multiplication
+A_beta.columns = A_beta.index
 ```
 
 ```{python}
-A_dom_WIOD=A_beta.loc['DOM','DOM']
-A_imp_WIOD=A_beta.loc['OTH','DOM'] / A_dom_WIOD.replace(0, np.nan)
-A_imp_WIOD.fillna(value=0,inplace=True)
-A_imp_WIOD.replace([np.inf,-np.inf],0,inplace=True)
+A_dom_WIOD = A_beta.loc["DOM", "DOM"]
+A_imp_WIOD = A_beta.loc["OTH", "DOM"] / A_dom_WIOD.replace(0, np.nan)
+A_imp_WIOD.fillna(value=0, inplace=True)
+A_imp_WIOD.replace([np.inf, -np.inf], 0, inplace=True)
 ```
 
 # Merge with Locomotion
 
 ```{python}
-output=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[2], index_col=[0], sheet_name='output')
+output = pd.read_excel(
+    f"source-data/pisa-team-files/economy_R.xlsx",
+    header=[2],
+    index_col=[0],
+    sheet_name="output",
+)
 ```
 
 ```{python}
-regions=output.index
-sectors=output.columns
+regions = output.index
+sectors = output.columns
 ```
 
 ```{python}
-output_vector=pd.DataFrame(index=pd.MultiIndex.from_product([regions,sectors]), columns=['output'], dtype="float64")
+output_vector = pd.DataFrame(
+    index=pd.MultiIndex.from_product([regions, sectors]),
+    columns=["output"],
+    dtype="float64",
+)
 for r in regions:
     for s in sectors:
-        output_vector.loc[(r,s)]=output.loc[r,s]
-x=output_vector.squeeze()
+        output_vector.loc[(r, s)] = output.loc[r, s]
+x = output_vector.squeeze()
 ```
 
 ##### A matrix
 
 ```{python}
-U=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[3], index_col=[0,1], sheet_name='amatrix')
-U.dropna(axis=0,how='any',inplace=True)
+U = pd.read_excel(
+    f"source-data/pisa-team-files/economy_R.xlsx",
+    header=[3],
+    index_col=[0, 1],
+    sheet_name="amatrix",
+)
+U.dropna(axis=0, how="any", inplace=True)
 
-A_impshare=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[2], index_col=[0,1], sheet_name='impshare')[sectors]
-A_impshare.dropna(axis=0,how='any',inplace=True)
+A_impshare = pd.read_excel(
+    f"source-data/pisa-team-files/economy_R.xlsx",
+    header=[2],
+    index_col=[0, 1],
+    sheet_name="impshare",
+)[sectors]
+A_impshare.dropna(axis=0, how="any", inplace=True)
 
-A_impshare.rename(index={'LROW':'ROW'},inplace=True)
-U.rename(index={'LROW':'ROW'},inplace=True)
+A_impshare.rename(index={"LROW": "ROW"}, inplace=True)
+U.rename(index={"LROW": "ROW"}, inplace=True)
 
 # Domestic technical coefficients - how much domestic inputs needed per unit of output
-A_dom=U*(1-A_impshare)
+A_dom = U * (1 - A_impshare)
 # Import technical coefficients - how much imports needed per unit of output
-A_imp=U*A_impshare
+A_imp = U * A_impshare
 ```
 
 ```{python}
 # This data contains the share of each country of origin in imports of a certain category to a certain use industry in a certain target country
-A_imp_origin=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[1], index_col=[0,1,2], sheet_name='impshareorigin')[sectors]
+A_imp_origin = pd.read_excel(
+    f"source-data/pisa-team-files/economy_R.xlsx",
+    header=[1],
+    index_col=[0, 1, 2],
+    sheet_name="impshareorigin",
+)[sectors]
 ```
 
 ##### Create Multiregional A matrix
@@ -189,14 +258,20 @@ for toreg in regions:
 # Same as the above cell but use more performant joins instead of loops
 
 # First convert to long format with melt
-A_imp_origin_long = A_imp_origin.melt(var_name="to_ind", value_name="share_of_imports", ignore_index=False).set_index(["to_ind"], append=True)
-A_imp_long = A_imp.melt(var_name="to_ind", value_name="import_coefficient", ignore_index=False).set_index(["to_ind"], append=True)
+A_imp_origin_long = A_imp_origin.melt(
+    var_name="to_ind", value_name="share_of_imports", ignore_index=False
+).set_index(["to_ind"], append=True)
+A_imp_long = A_imp.melt(
+    var_name="to_ind", value_name="import_coefficient", ignore_index=False
+).set_index(["to_ind"], append=True)
 A_imp_long.index.names = ["dest", "ind", "to_ind"]
 
 # Join and calculate the multiregion import coefficient, i.e. how much of each origin country's imports of an origin
 # industry are needed to produce a unit of output in a given target country in a given target industry
-A_imp_multireg_long = A_imp_origin_long.join(A_imp_long) # joins by index values
-A_imp_multireg_long["multiregion_import_coefficient"] = A_imp_multireg_long["share_of_imports"] * A_imp_multireg_long["import_coefficient"]
+A_imp_multireg_long = A_imp_origin_long.join(A_imp_long)  # joins by index values
+A_imp_multireg_long["multiregion_import_coefficient"] = (
+    A_imp_multireg_long["share_of_imports"] * A_imp_multireg_long["import_coefficient"]
+)
 
 # Pivot wider to similar format as in original code using unstack
 # Droplevel simplifies the multilevel column, dropping a redundant level originating from the unstack
@@ -213,91 +288,150 @@ A_imp_multireg = (
 ```
 
 ```{python}
-A=A_imp_multireg.copy()
+A = A_imp_multireg.copy()
 for reg in regions:
-    A.loc[reg,reg]=A_dom.loc[reg].values
+    A.loc[reg, reg] = A_dom.loc[reg].values
 ```
 
 ```{python}
-A.columns=A.index
+A.columns = A.index
 ```
 
 ### Calculate and aggregate Z (sectors and regions)
 
 ```{python}
-x_diag=np.diag(x)
-Z=np.matmul(A.values,x_diag)
-Z=pd.DataFrame(Z,index=A.index,columns=A.columns)
+x_diag = np.diag(x)
+Z = np.matmul(A.values, x_diag)
+Z = pd.DataFrame(Z, index=A.index, columns=A.columns)
 ```
 
 ```{python}
-x_inv=1/x
-x_inv.fillna(value=0,inplace=True)
-x_inv.replace([np.inf,-np.inf],0,inplace=True)
-x_inv_diag=np.diag(x_inv)
+x_inv = 1 / x
+x_inv.fillna(value=0, inplace=True)
+x_inv.replace([np.inf, -np.inf], 0, inplace=True)
+x_inv_diag = np.diag(x_inv)
 ```
 
 #### Aggregate
 
 ```{python}
-domestic=['FIN']
-abroad=[x for x in regions if x not in domestic]
+domestic = ["FIN"]
+abroad = [x for x in regions if x not in domestic]
 ```
 
 ```{python}
-secA=['CROPS','ANIMALS','FORESTRY','FISHNG']
-secB=['MINING_COAL','EXTRACTION_OIL','EXTRACTION_GAS','EXTRACTION_OTHER_GAS','MINING_URANIUM_THORIUM','MINING_IRON','MINING_COPPER','MINING_NICKEL','MINING_ALUMINIUM','MINING_PRECIOUS_METALS','MINING_LEAD_ZINC_TIN','MINING_OTHER_METALS','MINING_NON_METALS']
-secC=['MANUFACTURE_FOOD','MANUFACTURE_WOOD','MANUFACTURE_CHEMICAL','MANUFACTURE_PLASTIC','MANUFACTURE_OTHER_NON_METAL','MANUFACTURE_BASIC_METALS','MANUFACTURE_METAL_PRODUCTS','MANUFACTURE_ELECTRONICS','MANUFACTURE_ELECTRICAL_EQUIPMENT','MANUFACTURE_MACHINERY','MANUFACTURE_OTHER']
-secC19=['COKE','REFINING']
-secC29=['MANUFACTURE_VEHICLES']
-secD1=['ELECTRICITY_COAL','ELECTRICITY_GAS','ELECTRICITY_NUCLEAR','ELECTRICITY_HYDRO','ELECTRICITY_WIND','ELECTRICITY_OIL','ELECTRICITY_SOLAR_PV','ELECTRICITY_SOLAR_THERMAL','ELECTRICITY_OTHER','DISTRIBUTION_ELECTRICITY']
-secD2=['DISTRIBUTION_GAS']
-secD3=['STEAM_HOT_WATER']
-secE=['WASTE_MANAGEMENT']
-secF=['CONSTRUCTION']
-secG=['TRADE_REPAIR_VEHICLES']
-secH51=['TRANSPORT_RAIL','TRANSPORT_OTHER_LAND','TRANSPORT_PIPELINE','TRANSPORT_SEA','TRANSPORT_INLAND_WATER','TRANSPORT_AIR']
-secI=['ACCOMMODATION']
-secJRS=['TELECOMMUNICATIONS','ENTERTAIMENT']
-secK=['FINANCE']
-secL=['REAL_ESTATE']
-secH53MN=['OTHER_SERVICES']
-secO=['PUBLIC_ADMINISTRATION']
-secP=['EDUCATION']
-secQ=['HEALTH']
-secT=['PRIVATE_HOUSEHOLDS']
+secA = ["CROPS", "ANIMALS", "FORESTRY", "FISHNG"]
+secB = [
+    "MINING_COAL",
+    "EXTRACTION_OIL",
+    "EXTRACTION_GAS",
+    "EXTRACTION_OTHER_GAS",
+    "MINING_URANIUM_THORIUM",
+    "MINING_IRON",
+    "MINING_COPPER",
+    "MINING_NICKEL",
+    "MINING_ALUMINIUM",
+    "MINING_PRECIOUS_METALS",
+    "MINING_LEAD_ZINC_TIN",
+    "MINING_OTHER_METALS",
+    "MINING_NON_METALS",
+]
+secC = [
+    "MANUFACTURE_FOOD",
+    "MANUFACTURE_WOOD",
+    "MANUFACTURE_CHEMICAL",
+    "MANUFACTURE_PLASTIC",
+    "MANUFACTURE_OTHER_NON_METAL",
+    "MANUFACTURE_BASIC_METALS",
+    "MANUFACTURE_METAL_PRODUCTS",
+    "MANUFACTURE_ELECTRONICS",
+    "MANUFACTURE_ELECTRICAL_EQUIPMENT",
+    "MANUFACTURE_MACHINERY",
+    "MANUFACTURE_OTHER",
+]
+secC19 = ["COKE", "REFINING"]
+secC29 = ["MANUFACTURE_VEHICLES"]
+secD1 = [
+    "ELECTRICITY_COAL",
+    "ELECTRICITY_GAS",
+    "ELECTRICITY_NUCLEAR",
+    "ELECTRICITY_HYDRO",
+    "ELECTRICITY_WIND",
+    "ELECTRICITY_OIL",
+    "ELECTRICITY_SOLAR_PV",
+    "ELECTRICITY_SOLAR_THERMAL",
+    "ELECTRICITY_OTHER",
+    "DISTRIBUTION_ELECTRICITY",
+]
+secD2 = ["DISTRIBUTION_GAS"]
+secD3 = ["STEAM_HOT_WATER"]
+secE = ["WASTE_MANAGEMENT"]
+secF = ["CONSTRUCTION"]
+secG = ["TRADE_REPAIR_VEHICLES"]
+secH51 = [
+    "TRANSPORT_RAIL",
+    "TRANSPORT_OTHER_LAND",
+    "TRANSPORT_PIPELINE",
+    "TRANSPORT_SEA",
+    "TRANSPORT_INLAND_WATER",
+    "TRANSPORT_AIR",
+]
+secI = ["ACCOMMODATION"]
+secJRS = ["TELECOMMUNICATIONS", "ENTERTAIMENT"]
+secK = ["FINANCE"]
+secL = ["REAL_ESTATE"]
+secH53MN = ["OTHER_SERVICES"]
+secO = ["PUBLIC_ADMINISTRATION"]
+secP = ["EDUCATION"]
+secQ = ["HEALTH"]
+secT = ["PRIVATE_HOUSEHOLDS"]
 
-agg_sector={'A':secA,'B':secB,'C':secC,'C19':secC19, 'C29':secC29,'D1':secD1,'D2':secD2,'D3':secD3,'E':secE,'F':secF,'G':secG,'H':secH51,'I':secI,'J_R_S':secJRS,'K':secK,'L':secL,'H_M_N':secH53MN,'O':secO,'P':secP,'Q':secQ,'T':secT}
+agg_sector = {
+    "A": secA,
+    "B": secB,
+    "C": secC,
+    "C19": secC19,
+    "C29": secC29,
+    "D1": secD1,
+    "D2": secD2,
+    "D3": secD3,
+    "E": secE,
+    "F": secF,
+    "G": secG,
+    "H": secH51,
+    "I": secI,
+    "J_R_S": secJRS,
+    "K": secK,
+    "L": secL,
+    "H_M_N": secH53MN,
+    "O": secO,
+    "P": secP,
+    "Q": secQ,
+    "T": secT,
+}
 ```
 
 ```{python}
-#Regions
+# Regions
 
-agg_region=['DOM','OTH']
-Z_region_agg=pd.DataFrame(
-    index=pd.MultiIndex.from_product([agg_region,sectors]),
-    columns=pd.MultiIndex.from_product([agg_region,sectors]),
-    dtype="float64"
-    )
-Z_region_agg.loc['DOM','DOM']=Z.loc[domestic,domestic].values
-Z_region_agg.loc['DOM','OTH'] = (
-    Z
-    .loc[domestic,abroad]
-    .T
-    .groupby(level=1,sort=False)
-    .sum()
-    .T
-    .values
+agg_region = ["DOM", "OTH"]
+Z_region_agg = pd.DataFrame(
+    index=pd.MultiIndex.from_product([agg_region, sectors]),
+    columns=pd.MultiIndex.from_product([agg_region, sectors]),
+    dtype="float64",
 )
-Z_region_agg.loc['OTH','DOM'] = Z.loc[abroad,domestic].groupby(level=1,sort=False).sum().values
-Z_region_agg.loc['OTH','OTH'] = (
-    Z
-    .loc[abroad,abroad]
-    .T
-    .groupby(level=1,sort=False)
+Z_region_agg.loc["DOM", "DOM"] = Z.loc[domestic, domestic].values
+Z_region_agg.loc["DOM", "OTH"] = (
+    Z.loc[domestic, abroad].T.groupby(level=1, sort=False).sum().T.values
+)
+Z_region_agg.loc["OTH", "DOM"] = (
+    Z.loc[abroad, domestic].groupby(level=1, sort=False).sum().values
+)
+Z_region_agg.loc["OTH", "OTH"] = (
+    Z.loc[abroad, abroad]
+    .T.groupby(level=1, sort=False)
     .sum()
-    .T
-    .groupby(level=1,sort=False)
+    .T.groupby(level=1, sort=False)
     .sum()
     .values
 )
@@ -305,23 +439,23 @@ Z_region_agg.loc['OTH','OTH'] = (
 # Sectors
 
 Z_agg_rows = pd.DataFrame(
-    columns=pd.MultiIndex.from_product([agg_region,sectors]),
-    index=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]),
-    dtype="float64"
-    )
+    columns=pd.MultiIndex.from_product([agg_region, sectors]),
+    index=pd.MultiIndex.from_product([agg_region, agg_sector.keys()]),
+    dtype="float64",
+)
 Z_agg_loco = pd.DataFrame(
-    columns=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]),
-    index=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]),
-    dtype="float64"
-    )
+    columns=pd.MultiIndex.from_product([agg_region, agg_sector.keys()]),
+    index=pd.MultiIndex.from_product([agg_region, agg_sector.keys()]),
+    dtype="float64",
+)
 
-for i in agg_region: 
+for i in agg_region:
     for m in agg_sector.keys():
-        Z_agg_rows.loc[(i,m),:]=Z_region_agg.loc[(i,agg_sector[m]),:].sum()
+        Z_agg_rows.loc[(i, m), :] = Z_region_agg.loc[(i, agg_sector[m]), :].sum()
 
-for i in agg_region: 
+for i in agg_region:
     for m in agg_sector.keys():
-        Z_agg_loco.loc[:,(i,m)]=Z_agg_rows.loc[:,(i,agg_sector[m])].sum(axis=1)
+        Z_agg_loco.loc[:, (i, m)] = Z_agg_rows.loc[:, (i, agg_sector[m])].sum(axis=1)
 
 
 ```
@@ -329,62 +463,84 @@ for i in agg_region:
 # Link WIOD and Locomotion
 
 ```{python}
-DsecLoc=['D1','D2','D3']
-notD=[x for x in agg_sector if x not in DsecLoc]
+DsecLoc = ["D1", "D2", "D3"]
+notD = [x for x in agg_sector if x not in DsecLoc]
 ```
 
 ```{python}
 # So for the D columns, if WIOD is not zero, but Locomotion is, we simply split evenly between the sectors. For coherence we do the same for rows (but it does not seem to apply here).
 
 WIOD_LOCO_Z = pd.DataFrame(
-    columns=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]),
-    index=pd.MultiIndex.from_product([agg_region,agg_sector.keys()]),
-    dtype="float64"
-    )
+    columns=pd.MultiIndex.from_product([agg_region, agg_sector.keys()]),
+    index=pd.MultiIndex.from_product([agg_region, agg_sector.keys()]),
+    dtype="float64",
+)
 
-WIOD_LOCO_Z.loc[(agg_region, notD), (agg_region, notD)] = Z_agg.loc[(agg_region, notD), (agg_region, notD)]
+WIOD_LOCO_Z.loc[(agg_region, notD), (agg_region, notD)] = Z_agg.loc[
+    (agg_region, notD), (agg_region, notD)
+]
 
 # ROWS
 for m in agg_region:
     for n in agg_region:
         for i in DsecLoc:
             for j in notD:
-                if Z_agg.loc[(m,'D'),(n,j)]>0 and (Z_agg_loco.loc[(m,DsecLoc),(n,j)].sum())==0:
-                    WIOD_LOCO_Z.loc[(m,i),(n,j)]=Z_agg.loc[(m,'D'),(n,j)]/len(DsecLoc)
+                if (
+                    Z_agg.loc[(m, "D"), (n, j)] > 0
+                    and (Z_agg_loco.loc[(m, DsecLoc), (n, j)].sum()) == 0
+                ):
+                    WIOD_LOCO_Z.loc[(m, i), (n, j)] = Z_agg.loc[(m, "D"), (n, j)] / len(
+                        DsecLoc
+                    )
                 else:
-                    WIOD_LOCO_Z.loc[(m,i),(n,j)]=Z_agg.loc[(m,'D'),(n,j)]*(Z_agg_loco.loc[(m,i),(n,j)]/(Z_agg_loco.loc[(m,DsecLoc),(n,j)].sum()))
+                    WIOD_LOCO_Z.loc[(m, i), (n, j)] = Z_agg.loc[(m, "D"), (n, j)] * (
+                        Z_agg_loco.loc[(m, i), (n, j)]
+                        / (Z_agg_loco.loc[(m, DsecLoc), (n, j)].sum())
+                    )
 
 # COLUMNS
 for m in agg_region:
     for n in agg_region:
         for i in notD:
             for j in DsecLoc:
-                if Z_agg.loc[(m,i),(n,'D')]>0 and (Z_agg_loco.loc[(m,i),(n,DsecLoc)].sum())==0:
-                    WIOD_LOCO_Z.loc[(m,i),(n,j)]=Z_agg.loc[(m,i),(n,'D')]/len(DsecLoc)
+                if (
+                    Z_agg.loc[(m, i), (n, "D")] > 0
+                    and (Z_agg_loco.loc[(m, i), (n, DsecLoc)].sum()) == 0
+                ):
+                    WIOD_LOCO_Z.loc[(m, i), (n, j)] = Z_agg.loc[(m, i), (n, "D")] / len(
+                        DsecLoc
+                    )
                 else:
-                    WIOD_LOCO_Z.loc[(m,i),(n,j)]=Z_agg.loc[(m,i),(n,'D')]*(Z_agg_loco.loc[(m,i),(n,j)]/(Z_agg_loco.loc[(m,i),(n,DsecLoc)].sum()))
+                    WIOD_LOCO_Z.loc[(m, i), (n, j)] = Z_agg.loc[(m, i), (n, "D")] * (
+                        Z_agg_loco.loc[(m, i), (n, j)]
+                        / (Z_agg_loco.loc[(m, i), (n, DsecLoc)].sum())
+                    )
 
 # INTERSECTION
 for m in agg_region:
     for n in agg_region:
         for i in DsecLoc:
             for j in DsecLoc:
-                WIOD_LOCO_Z.loc[(m,i),(n,j)]=Z_agg.loc[(m,'D'),(n,'D')]*(Z_agg_loco.loc[(m,i),(n,j)]/(Z_agg_loco.loc[(m,DsecLoc),(n,DsecLoc)].sum().sum()))
-
+                WIOD_LOCO_Z.loc[(m, i), (n, j)] = Z_agg.loc[(m, "D"), (n, "D")] * (
+                    Z_agg_loco.loc[(m, i), (n, j)]
+                    / (Z_agg_loco.loc[(m, DsecLoc), (n, DsecLoc)].sum().sum())
+                )
 ```
 
 ```{python}
-WIOD_LOCO_Z.fillna(value=0,inplace=True)
+WIOD_LOCO_Z.fillna(value=0, inplace=True)
 ```
 
 #### Export
 
 ```{python}
-with pd.ExcelWriter('source-data/pisa-team-files/WIOD_FI_clear_check.xlsx',engine='openpyxl',mode='w') as writer:
-    #A_agg.to_excel(writer, sheet_name='A agg Locomotion')
-    #WIOD_LOCO.to_excel(writer,sheet_name='A WIOD Loco hybrid')
-    #x_WIOD_LOCO.to_excel(writer,sheet_name='x WIOD Loco hybrid')
-    WIOD_LOCO_Z.to_excel(writer,sheet_name='Z WIOD Loco hybrid')
+with pd.ExcelWriter(
+    "source-data/pisa-team-files/WIOD_FI_clear_check.xlsx", engine="openpyxl", mode="w"
+) as writer:
+    # A_agg.to_excel(writer, sheet_name='A agg Locomotion')
+    # WIOD_LOCO.to_excel(writer,sheet_name='A WIOD Loco hybrid')
+    # x_WIOD_LOCO.to_excel(writer,sheet_name='x WIOD Loco hybrid')
+    WIOD_LOCO_Z.to_excel(writer, sheet_name="Z WIOD Loco hybrid")
 ```
 
 # Findem WIOD_LOCO
@@ -392,83 +548,103 @@ with pd.ExcelWriter('source-data/pisa-team-files/WIOD_FI_clear_check.xlsx',engin
 #### WIOD
 
 ```{python}
-domestic=['FIN']
+domestic = ["FIN"]
 ```
 
 ```{python}
-findem_cat=['dom','imp','exp']
-findem_wiod={}
-findem_wiod['dom']=IO['Y domestic'].loc['FIN','FIN']
-findem_wiod['imp']=IO['Y imports']['FIN']
-findem_wiod['exp']=IO['Y exports'].loc['FIN']
-findem_wiod['exp']['Z']=IO['Z exports'].sum(axis=1).values
+findem_cat = ["dom", "imp", "exp"]
+findem_wiod = {}
+findem_wiod["dom"] = IO["Y domestic"].loc["FIN", "FIN"]
+findem_wiod["imp"] = IO["Y imports"]["FIN"]
+findem_wiod["exp"] = IO["Y exports"].loc["FIN"]
+findem_wiod["exp"]["Z"] = IO["Z exports"].sum(axis=1).values
 ```
 
 ```{python}
 # aggregate sectors:
 findem_wiod_agg = pd.DataFrame(
-    index=pd.MultiIndex.from_product([findem_cat,parse_WIOD.agg_ind.keys()]),
-    columns=findem_wiod['exp'].columns,
-    dtype="float64"
-    )
+    index=pd.MultiIndex.from_product([findem_cat, parse_WIOD.agg_ind.keys()]),
+    columns=findem_wiod["exp"].columns,
+    dtype="float64",
+)
 
 for c in findem_cat:
     for m in parse_WIOD.agg_ind.keys():
-        findem_wiod_agg.loc[(c,m),:]=findem_wiod[c].loc[parse_WIOD.agg_ind[m]].sum()
+        findem_wiod_agg.loc[(c, m), :] = findem_wiod[c].loc[parse_WIOD.agg_ind[m]].sum()
 ```
 
 #### Locomotion
 
 ```{python}
-findem_loco=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[0,1], index_col=[0,1],skiprows=2, sheet_name='finaldemand').loc[:,(slice(None),domestic)]
-findem_loco=findem_loco.droplevel(axis=1,level=1)
-findem_loco.dropna(axis=0,how='all',inplace=True)
-findem_loco.dropna(axis=1,how='all',inplace=True)
+findem_loco = pd.read_excel(
+    f"source-data/pisa-team-files/economy_R.xlsx",
+    header=[0, 1],
+    index_col=[0, 1],
+    skiprows=2,
+    sheet_name="finaldemand",
+    ).loc[:, (slice(None), domestic)]
+findem_loco = findem_loco.droplevel(axis=1, level=1)
+findem_loco.dropna(axis=0, how="all", inplace=True)
+findem_loco.dropna(axis=1, how="all", inplace=True)
 ```
 
 ```{python}
-loco_regions=findem_loco.index.get_level_values(level=0).unique()
-loco_sectors=findem_loco.index.get_level_values(level=1).unique()
+loco_regions = findem_loco.index.get_level_values(level=0).unique()
+loco_sectors = findem_loco.index.get_level_values(level=1).unique()
 
-oth_regions=[x for x in loco_regions if x not in domestic]
+oth_regions = [x for x in loco_regions if x not in domestic]
 ```
 
 ```{python}
-findem_loco_exp=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[0,1], index_col=[0,1],skiprows=2, sheet_name='finaldemand').loc[domestic,(slice(None),oth_regions)]
-findem_loco_exp=findem_loco.droplevel(axis=0,level=0)
-findem_loco_exp.dropna(axis=0,how='all',inplace=True)
-findem_loco_exp.dropna(axis=1,how='all',inplace=True)
+findem_loco_exp = pd.read_excel(
+    f"source-data/pisa-team-files/economy_R.xlsx",
+    header=[0, 1],
+    index_col=[0, 1],
+    skiprows=2,
+    sheet_name="finaldemand",
+).loc[domestic, (slice(None), oth_regions)]
+findem_loco_exp = findem_loco.droplevel(axis=0, level=0)
+findem_loco_exp.dropna(axis=0, how="all", inplace=True)
+findem_loco_exp.dropna(axis=1, how="all", inplace=True)
 
 ```
 
 ```{python}
 # We assume direct purchases abroad to household consumption
-CONS_h=['HOUSEHOLDS_FINAL_CONSUMPTION_EXPENDITURE','DIRECT_PURCHASES_ABROAD','NON-PROFIT_INSTITUTIONS_SERVING_HOUSEHOLDS']
-CONS_g=['GENERAL_GOVERNMENT_FINAL_CONSUMPTION']
-GFCF=['GROSS_FIXED_CAPITAL_FORMATION']
-INVEN=['CHANGE_IN_INVENTORIES_AND_VALUABLES']
-fd_origin={'H':CONS_h,'G':CONS_g,'GFCF':GFCF,'INT':INVEN}
+CONS_h = [
+    "HOUSEHOLDS_FINAL_CONSUMPTION_EXPENDITURE",
+    "DIRECT_PURCHASES_ABROAD",
+    "NON-PROFIT_INSTITUTIONS_SERVING_HOUSEHOLDS",
+]
+CONS_g = ["GENERAL_GOVERNMENT_FINAL_CONSUMPTION"]
+GFCF = ["GROSS_FIXED_CAPITAL_FORMATION"]
+INVEN = ["CHANGE_IN_INVENTORIES_AND_VALUABLES"]
+fd_origin = {"H": CONS_h, "G": CONS_g, "GFCF": GFCF, "INT": INVEN}
 ```
 
 ```{python}
 findem_loco_dom_imp = pd.DataFrame(
-    index=pd.MultiIndex.from_product([['dom','imp','exp'],loco_sectors]),
+    index=pd.MultiIndex.from_product([["dom", "imp", "exp"], loco_sectors]),
     columns=findem_loco.columns,
-    dtype="float64"
-    )
+    dtype="float64",
+)
 
-findem_loco_dom_imp.loc['imp']=findem_loco.loc[oth_regions].groupby(level=1,sort=False).sum().values
-findem_loco_dom_imp.loc['dom']=findem_loco.loc[domestic].values
-findem_loco_dom_imp.loc['exp']=findem_loco_exp.groupby(level=0,sort=False).sum().values
+findem_loco_dom_imp.loc["imp"] = (
+    findem_loco.loc[oth_regions].groupby(level=1, sort=False).sum().values
+)
+findem_loco_dom_imp.loc["dom"] = findem_loco.loc[domestic].values
+findem_loco_dom_imp.loc["exp"] = (
+    findem_loco_exp.groupby(level=0, sort=False).sum().values
+)
 
 findem_loco_cat = pd.DataFrame(
-    index=pd.MultiIndex.from_product([['dom','imp','exp'],loco_sectors]),
+    index=pd.MultiIndex.from_product([["dom", "imp", "exp"], loco_sectors]),
     columns=fd_origin.keys(),
-    dtype="float64"
-    )
+    dtype="float64",
+)
 
 for c in fd_origin.keys():
-    findem_loco_cat[c]=findem_loco_dom_imp[fd_origin[c]].sum(axis=1)
+    findem_loco_cat[c] = findem_loco_dom_imp[fd_origin[c]].sum(axis=1)
 
 ```
 
@@ -476,71 +652,82 @@ for c in fd_origin.keys():
 
 ```{python}
 findem_loco_cat_agg_sec = pd.DataFrame(
-    index=pd.MultiIndex.from_product([['dom','imp','exp'],agg_sector.keys()]),
+    index=pd.MultiIndex.from_product([["dom", "imp", "exp"], agg_sector.keys()]),
     columns=fd_origin.keys(),
-    dtype="float64"
-    )
+    dtype="float64",
+)
 
-for i in ['dom','imp','exp']: 
+for i in ["dom", "imp", "exp"]:
     for m in agg_sector.keys():
-        findem_loco_cat_agg_sec.loc[(i,m)]=findem_loco_cat.loc[(i,agg_sector[m]),:].sum()
+        findem_loco_cat_agg_sec.loc[(i, m)] = findem_loco_cat.loc[(i, agg_sector[m]), :].sum()
 ```
 
 ```{python}
 # We assume direct purchases abroad to household consumption
-CONS_h=['CONS_h','CONS_np']
-CONS_g=['CONS_g']
-GFCF=['GFCF']
-INVEN=['INVEN']
-fd_origin={'H':CONS_h,'G':CONS_g,'GFCF':GFCF,'INT':INVEN}
+CONS_h = ["CONS_h", "CONS_np"]
+CONS_g = ["CONS_g"]
+GFCF = ["GFCF"]
+INVEN = ["INVEN"]
+fd_origin = {"H": CONS_h, "G": CONS_g, "GFCF": GFCF, "INT": INVEN}
 ```
 
 ```{python}
 findem_wiod_cat = pd.DataFrame(
-    index=findem_wiod_agg.index,
-    columns=fd_origin.keys(),
-    dtype="float64"
-    )
+    index=findem_wiod_agg.index, columns=fd_origin.keys(), dtype="float64"
+)
 
 for c in fd_origin.keys():
-    findem_wiod_cat[c]=findem_wiod_agg[fd_origin[c]].sum(axis=1)
+    findem_wiod_cat[c] = findem_wiod_agg[fd_origin[c]].sum(axis=1)
 ```
 
 ```{python}
-DsecLoc=['D1','D2','D3']
-notD=[x for x in agg_sector if x not in DsecLoc]
+DsecLoc = ["D1", "D2", "D3"]
+notD = [x for x in agg_sector if x not in DsecLoc]
 
 findem_wiod_loco = pd.DataFrame(
     data=0,
-    index=pd.MultiIndex.from_product([['dom','imp','exp'],agg_sector.keys()]),
+    index=pd.MultiIndex.from_product([["dom", "imp", "exp"], agg_sector.keys()]),
     columns=fd_origin.keys(),
-    dtype="float64"
-    )
+    dtype="float64",
+)
 
 # Split wiod D-sector according to the ratios in findem_loco_cat_agg_sec, otherwise use aggregated wiod values
-for e in ['dom','imp','exp']:
+for e in ["dom", "imp", "exp"]:
     for i in notD:
-        findem_wiod_loco.loc[(e,i)]=findem_wiod_cat.loc[(e,i)]
+        findem_wiod_loco.loc[(e, i)] = findem_wiod_cat.loc[(e, i)]
     for i in DsecLoc:
         for c in fd_origin.keys():
-            findem_wiod_loco.loc[(e,i),c]=findem_wiod_cat.loc[(e,'D'),c]*(findem_loco_cat_agg_sec.loc[(e,i),c]/findem_loco_cat_agg_sec.loc[(e,DsecLoc),c].sum())
+            findem_wiod_loco.loc[(e, i), c] = findem_wiod_cat.loc[(e, "D"), c] * (
+                findem_loco_cat_agg_sec.loc[(e, i), c]
+                / findem_loco_cat_agg_sec.loc[(e, DsecLoc), c].sum()
+            )
 ```
 
 ```{python}
 # Add intermediate exports
-WIOD_LOCO_Z=pd.read_excel(f'source-data/pisa-team-files/WIOD_FI_clear_check.xlsx', header=[0,1], index_col=[0,1], sheet_name='Z WIOD Loco hybrid')
+WIOD_LOCO_Z = pd.read_excel(
+    f"source-data/pisa-team-files/WIOD_FI_clear_check.xlsx",
+    header=[0, 1],
+    index_col=[0, 1],
+    sheet_name="Z WIOD Loco hybrid",
+)
 ```
 
 ```{python}
-findem_wiod_loco['Z']=0
-findem_wiod_loco.loc['exp','Z']=WIOD_LOCO_Z.loc['DOM','OTH'].sum(axis=1).values
+findem_wiod_loco["Z"] = 0
+findem_wiod_loco.loc["exp", "Z"] = WIOD_LOCO_Z.loc["DOM", "OTH"].sum(axis=1).values
 ```
 
 ##### Export
 
 ```{python}
-with pd.ExcelWriter('source-data/pisa-team-files/WIOD_FI_clear_check.xlsx',engine='openpyxl',mode='a', if_sheet_exists='overlay') as writer:
-    findem_wiod_loco.to_excel(writer, sheet_name='findem wiod-loco')
+with pd.ExcelWriter(
+    "source-data/pisa-team-files/WIOD_FI_clear_check.xlsx",
+    engine="openpyxl",
+    mode="a",
+    if_sheet_exists="overlay",
+) as writer:
+    findem_wiod_loco.to_excel(writer, sheet_name="findem wiod-loco")
 ```
 
 # A with Z + findem
@@ -548,80 +735,99 @@ with pd.ExcelWriter('source-data/pisa-team-files/WIOD_FI_clear_check.xlsx',engin
 There is a discrepancy within D between Z+findem and output due to the merging of the different datasets
 
 ```{python}
-findem=pd.read_excel('source-data/pisa-team-files/WIOD_FI_clear_check.xlsx',sheet_name='findem wiod-loco',header=[0],index_col=[0,1])
-findem_dom=findem.loc['dom']
-findem_exp=findem.loc['exp']
+findem = pd.read_excel(
+    "source-data/pisa-team-files/WIOD_FI_clear_check.xlsx",
+    sheet_name="findem wiod-loco",
+    header=[0],
+    index_col=[0, 1],
+)
+findem_dom = findem.loc["dom"]
+findem_exp = findem.loc["exp"]
 
-Z=pd.read_excel('source-data/pisa-team-files/WIOD_FI_clear_check.xlsx',sheet_name='Z WIOD Loco hybrid',header=[0,1],index_col=[0,1])
+Z = pd.read_excel(
+    "source-data/pisa-team-files/WIOD_FI_clear_check.xlsx",
+    sheet_name="Z WIOD Loco hybrid",
+    header=[0, 1],
+    index_col=[0, 1],
+)
 
 # This is read as int, convert to float64
 Z.loc["DOM", "T"] = Z.loc["DOM", "T"].astype("float64")
 
-Z_dom=Z.loc['DOM','DOM']
-Z_exp=Z.loc['DOM','OTH']
-Z_imp=Z.loc['OTH','DOM']
+Z_dom = Z.loc["DOM", "DOM"]
+Z_exp = Z.loc["DOM", "OTH"]
+Z_imp = Z.loc["OTH", "DOM"]
 ```
 
 ```{python}
-x_new_dom=Z_dom.sum(axis=1)+findem_dom.sum(axis=1)+findem_exp.sum(axis=1)
+x_new_dom = Z_dom.sum(axis=1) + findem_dom.sum(axis=1) + findem_exp.sum(axis=1)
 
-x_new_dom_inv=1/x_new_dom
-x_new_dom_inv.fillna(value=0,inplace=True)
-x_new_dom_inv.replace([np.inf,-np.inf],0,inplace=True)
+x_new_dom_inv = 1 / x_new_dom
+x_new_dom_inv.fillna(value=0, inplace=True)
+x_new_dom_inv.replace([np.inf, -np.inf], 0, inplace=True)
 
-A_new_dom=(Z_dom @ np.diag(x_new_dom_inv.squeeze()))
-A_new_dom.columns=A_new_dom.index
+A_new_dom = Z_dom @ np.diag(x_new_dom_inv.squeeze())
+A_new_dom.columns = A_new_dom.index
 
-A_new_imp=(Z_imp @ np.diag(x_new_dom_inv.squeeze()))
-A_new_imp.columns=A_new_imp.index
+A_new_imp = Z_imp @ np.diag(x_new_dom_inv.squeeze())
+A_new_imp.columns = A_new_imp.index
 
-A_new_imp_share=A_new_imp/A_new_dom
+A_new_imp_share = A_new_imp / A_new_dom
 ```
 
 ##### Adjust D3
 
 ```{python}
 # Current value
-A_colsum=(A_new_imp+A_new_dom).sum()
-A_colsum['D3']
+A_colsum = (A_new_imp + A_new_dom).sum()
+A_colsum["D3"]
 
 # Locomotion value:
-U=pd.read_excel(f'source-data/pisa-team-files/economy_R.xlsx', header=[3], index_col=[0,1], sheet_name='amatrix')
-U.dropna(axis=0,how='any',inplace=True)
-U.loc['FIN'].sum()['STEAM_HOT_WATER']
+U = pd.read_excel(
+    f"source-data/pisa-team-files/economy_R.xlsx",
+    header=[3],
+    index_col=[0, 1],
+    sheet_name="amatrix",
+)
+U.dropna(axis=0, how="any", inplace=True)
+U.loc["FIN"].sum()["STEAM_HOT_WATER"]
 
-D3_adj_fac=U.loc['FIN'].sum()['STEAM_HOT_WATER']/A_colsum['D3']
+D3_adj_fac = U.loc["FIN"].sum()["STEAM_HOT_WATER"] / A_colsum["D3"]
 ```
 
 ```{python}
-A_new_dom['D3']=A_new_dom['D3']*D3_adj_fac
-A_new_imp['D3']=A_new_imp['D3']*D3_adj_fac
+A_new_dom["D3"] = A_new_dom["D3"] * D3_adj_fac
+A_new_imp["D3"] = A_new_imp["D3"] * D3_adj_fac
 ```
 
 ```{python}
 # exclude inventories from final demand
-final_demand_domestic=(findem_dom+findem_exp)[['H','G','GFCF','Z']].sum(axis=1)
+final_demand_domestic = (findem_dom + findem_exp)[["H", "G", "GFCF", "Z"]].sum(axis=1)
 ```
 
 ```{python}
 # correct X and Z based on the new final demand with inventories excluded
-L_dom_new=np.linalg.inv((np.identity(len(A_new_dom))-A_new_dom).to_numpy())
-x_new_dom=L_dom_new@final_demand_domestic
-x_new_dom_diag=np.diag(x_new_dom)
-Z_new_dom=np.matmul(A_new_dom.values,x_new_dom_diag)
-Z_new_dom=pd.DataFrame(Z_new_dom,index=A_new_dom.index,columns=A_new_dom.columns)
-x_new_dom=pd.DataFrame(x_new_dom,index=A_new_dom.index).squeeze()
+L_dom_new = np.linalg.inv((np.identity(len(A_new_dom)) - A_new_dom).to_numpy())
+x_new_dom = L_dom_new @ final_demand_domestic
+x_new_dom_diag = np.diag(x_new_dom)
+Z_new_dom = np.matmul(A_new_dom.values, x_new_dom_diag)
+Z_new_dom = pd.DataFrame(Z_new_dom, index=A_new_dom.index, columns=A_new_dom.columns)
+x_new_dom = pd.DataFrame(x_new_dom, index=A_new_dom.index).squeeze()
 ```
 
 ##### Export
 
 ```{python}
-with pd.ExcelWriter('source-data/pisa-team-files/WIOD_FI_clear_check_adj_D3.xlsx',engine='openpyxl',mode='w') as writer:
-    x_new_dom.to_excel(writer, sheet_name='x dom')
-    A_new_dom.to_excel(writer,sheet_name='A dom')
-    A_new_imp_share.to_excel(writer,sheet_name='A imp share')
-    Z_new_dom.to_excel(writer,sheet_name='Z dom')
-    findem.to_excel(writer,sheet_name='final demand')
+with pd.ExcelWriter(
+    "source-data/pisa-team-files/WIOD_FI_clear_check_adj_D3.xlsx",
+    engine="openpyxl",
+    mode="w",
+) as writer:
+    x_new_dom.to_excel(writer, sheet_name="x dom")
+    A_new_dom.to_excel(writer, sheet_name="A dom")
+    A_new_imp_share.to_excel(writer, sheet_name="A imp share")
+    Z_new_dom.to_excel(writer, sheet_name="Z dom")
+    findem.to_excel(writer, sheet_name="final demand")
     
 ```
 
