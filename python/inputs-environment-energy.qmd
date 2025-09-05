@@ -658,8 +658,41 @@ tot_E_balance = E_balance_E_prod.sum()
 # Electricity:
 # Eurostat Energy Balance:
 # Pumped storage:, Final energy use energy and electricity sector:
-pumped_storage = 16030.8
-elec_use = 40742.719
+# Get the data from eurostat
+import eurostat
+
+nrg_bal_dict = eurostat.get_dic("nrg_bal_c", par="nrg_bal", frmt="df")
+
+nrg_bal_extras_pars = {
+    "freq": "A",
+    "nrg_bal": [
+        "TI_EHG_EPS",  # Transformation input - electricity and heat generation - electricity for pumped storage
+        "GHP_MAPCHP", # Gross heat production - main activity producer combined heat and power
+        "GHP_MAPH", # Gross heat production - main activity producer heat only
+        "TO_EHG_MAPE", # Transformation output - electricity and heat generation - main activity producer electricity only
+        "GEP_MAPCHP", # Gross electricity production - main activity producer combined heat and power
+        "NRG_EHG_E", # Energy sector - electricity and heat generation - energy use
+    ],
+    "siec": "TOTAL",
+    "unit": "TJ",
+    "geo": country_code2,
+    "startPeriod": year,
+    "endPeriod": year,
+}
+
+nrg_bal_extras = eurostat.get_data_df(
+    "nrg_bal_c",
+    filter_pars=nrg_bal_extras_pars,
+)
+
+def get_nrg_bal_value(nrg_bal_df, nrg_bal_code, year=year):
+    res = nrg_bal_df[nrg_bal_df["nrg_bal"] == nrg_bal_code][f"{year}"].values[0]
+    return res
+
+pumped_storage = get_nrg_bal_value(nrg_bal_extras, "TI_EHG_EPS")
+
+elec_use = get_nrg_bal_value(nrg_bal_extras, "NRG_EHG_E")
+
 # Heat: Geothermal heat:
 geo_elec = E_balance["Geothermal"][
     "Transformation input - electricity and heat generation - main activity producer electricity only - energy use"
@@ -669,15 +702,25 @@ geo_elec = E_balance["Geothermal"][
 ```{python}
 # Supply:
 # Transformation output:
-# Electricity D1 (electricity only and CHP): 988708
-# Heat D1 (CHP): 92607
-# Heat D3 (Heat only): 2836
-e_balance_supply = pd.DataFrame(
-    0, index=["D1", "D3"], columns=["Electrical energy", "Heat"]
+
+# Electricity D1 (electricity only and CHP): 988708 TO_EHG_MAPE + GEP_MAPCHP TODO: check verification from Till
+# Heat D1 (CHP): 92607 GHP_MAPCHP
+# Heat D3 (Heat only): 2836 GHP_MAPH
+
+d1_electrical_energy = (
+    get_nrg_bal_value(nrg_bal_extras, "TO_EHG_MAPE")
+    + get_nrg_bal_value(nrg_bal_extras, "GEP_MAPCHP")
 )
-e_balance_supply.loc["D1", "Electrical energy"] = 988708
-e_balance_supply.loc["D1", "Heat"] = 92607
-e_balance_supply.loc["D3", "Heat"] = 2836
+
+heat_d1_chp = get_nrg_bal_value(nrg_bal_extras, "GHP_MAPCHP")
+heat_d3_heat_only = get_nrg_bal_value(nrg_bal_extras, "GHP_MAPH")
+
+e_balance_supply = pd.DataFrame(
+    0, index=["D1", "D3"], columns=["Electrical energy", "Heat"], dtype="float64"
+)
+e_balance_supply.loc["D1", "Electrical energy"] = d1_electrical_energy
+e_balance_supply.loc["D1", "Heat"] = heat_d1_chp
+e_balance_supply.loc["D3", "Heat"] = heat_d3_heat_only
 e_balance_D1_heat_supply_share = (
     e_balance_supply.loc["D1", "Heat"] / e_balance_supply["Heat"].sum()
 )
