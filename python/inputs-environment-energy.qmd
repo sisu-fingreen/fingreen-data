@@ -19,7 +19,13 @@ import pandas as pd
 # #import floweaver as fw
 ```
 
+Global params
 
+```{python}
+country_code3 = "ITA"
+country_code2 = country_code3[:2]
+year = 2010
+```
 
 ## Load and prepare
 
@@ -104,7 +110,7 @@ coltype_dict = {
 
 # As we only have total supply, we use total demand. We have to get rid of double counting later
 supply = pd.read_excel(
-    "source-data/pisa-team-files/PEFA_FI_2011.xlsx",
+    f"source-data/pisa-team-files/PEFA_{country_code2}_{year}.xlsx",
     header=[10],
     index_col=[0],
     sheet_name="Sheet 1",
@@ -113,7 +119,7 @@ supply = pd.read_excel(
     na_values=[":", "m"]
 )
 use = pd.read_excel(
-    "source-data/pisa-team-files/PEFA_FI_2011.xlsx",
+    f"source-data/pisa-team-files/PEFA_{country_code2}_{year}.xlsx",
     header=[10],
     index_col=[0],
     sheet_name="Sheet 2",
@@ -682,7 +688,7 @@ e_balance_D1_heat_supply_share = (
 ```{python}
 # Load x domestic
 x_dom = pd.read_excel(
-    "source-data/pisa-team-files/WIOD_IT.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     sheet_name="x dom new",
     header=[0],
     index_col=[0],
@@ -776,7 +782,7 @@ for e in [x for x in E_products if x not in ["Electrical energy", "Heat"]]:
 ```{python}
 # Load locomotion to get index order
 Z = pd.read_excel(
-    "source-data/pisa-team-files/WIOD_IT.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     sheet_name="Z WIOD Loco hybrid",
     header=[0],
     index_col=[0, 1],
@@ -987,7 +993,7 @@ loco_agg_sector = {
 
 ```{python}
 Z = pd.read_excel(
-    "source-data/pisa-team-files/WIOD_IT.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     sheet_name="Z WIOD Loco hybrid",
     header=[0],
     index_col=[0, 1],
@@ -1002,7 +1008,7 @@ sectors_D = Z_dom.index
 
 ```{python}
 findem = pd.read_excel(
-    "source-data/pisa-team-files/WIOD_IT.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     sheet_name="findem wiod-loco",
     header=[0],
     index_col=[0, 1],
@@ -1082,12 +1088,12 @@ secB_E = [
 ]
 
 loco_Z = pd.read_excel(
-    "source-data/pisa-team-files/Locomotion_IT.xlsx",
+    f"source-data/pisa-team-files/Locomotion_{country_code2}.xlsx",
     sheet_name="Z",
     header=[0, 1],
     index_col=[0, 1],
 )
-dom = ["ITA"]
+dom = [country_code3]
 loco_regions = loco_Z.index.get_level_values(level=0).unique()
 imp_regions = [x for x in loco_regions if x not in dom]
 ```
@@ -1112,7 +1118,7 @@ M_Z_E_dom.loc["B"] = Z_dom.loc["B"] * Z_B_E_share
 
 ```{python}
 loco_findem = pd.read_excel(
-    "source-data/pisa-team-files/Locomotion_IT.xlsx",
+    f"source-data/pisa-team-files/Locomotion_{country_code2}.xlsx",
     sheet_name="findem",
     header=[0],
     index_col=[0, 1],
@@ -1288,12 +1294,12 @@ secB_E = [
 ]
 
 loco_Z = pd.read_excel(
-    "source-data/pisa-team-files/Locomotion_IT.xlsx",
+    f"source-data/pisa-team-files/Locomotion_{country_code2}.xlsx",
     sheet_name="Z",
     header=[0, 1],
     index_col=[0, 1],
 )
-dom = ["ITA"]
+dom = [country_code3]
 loco_regions = loco_Z.index.get_level_values(level=0).unique()
 imp_regions = [x for x in loco_regions if x not in dom]
 ```
@@ -1323,7 +1329,7 @@ M_Z_E_imp.loc["B"] = Z_imp.loc["B"] * Z_B_E_imp_share
 
 ```{python}
 loco_findem = pd.read_excel(
-    "source-data/pisa-team-files/Locomotion_IT.xlsx",
+    f"source-data/pisa-team-files/Locomotion_{country_code2}.xlsx",
     sheet_name="findem",
     header=[0],
     index_col=[0, 1],
@@ -1577,7 +1583,7 @@ for e in E_products:
 ```{python}
 # Load x domestic
 x_dom = pd.read_excel(
-    "source-data/pisa-team-files/WIOD_IT.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     sheet_name="x dom new",
     header=[0],
     index_col=[0],
@@ -2183,14 +2189,14 @@ with pd.ExcelWriter(
 
 ```{python}
 supply = pd.read_excel(
-    "source-data/pisa-team-files/PEFA_IT_2010.xlsx",
+    f"source-data/pisa-team-files/PEFA_{country_code2}_{year}.xlsx",
     header=[10],
     index_col=[0],
     sheet_name="Sheet 1",
     nrows=39,
 )
 use = pd.read_excel(
-    "source-data/pisa-team-files/PEFA_IT_2010.xlsx",
+    f"source-data/pisa-team-files/PEFA_{country_code2}_{year}.xlsx",
     header=[10],
     index_col=[0],
     sheet_name="Sheet 2",
@@ -2415,21 +2421,21 @@ for m in E_products:
 
 ```{python}
 t_use = pd.read_excel(
-    "source-data/pisa-team-files/PEFA_IT_2010_use.xlsx",
+    f"source-data/pisa-team-files/PEFA_{country_code2}_{year}_use.xlsx",
     header=[10],
     index_col=[0],
     sheet_name="Sheet 2",
     nrows=39,
 )
 f_use = pd.read_excel(
-    "source-data/pisa-team-files/PEFA_IT_2010_use.xlsx",
+    f"source-data/pisa-team-files/PEFA_{country_code2}_{year}_use.xlsx",
     header=[10],
     index_col=[0],
     sheet_name="Sheet 3",
     nrows=39,
 )
 e_use = pd.read_excel(
-    "source-data/pisa-team-files/PEFA_IT_2010_use.xlsx",
+    f"source-data/pisa-team-files/PEFA_{country_code2}_{year}_use.xlsx",
     header=[10],
     index_col=[0],
     sheet_name="Sheet 4",
