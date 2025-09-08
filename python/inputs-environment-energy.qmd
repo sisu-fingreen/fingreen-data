@@ -489,7 +489,7 @@ findem = oth_use[
 
 ```{python}
 # only for autoproduction
-own_use_disagg = pd.DataFrame(0, index=disagg_sectors, columns=E_products)
+own_use_disagg = pd.DataFrame(0, index=disagg_sectors, columns=E_products, dtype="float64")
 for e in ["Electrical energy", "Heat"]:
     # with E balance aggregation
     own_use_disagg[e] = np.minimum(
@@ -497,7 +497,7 @@ for e in ["Electrical energy", "Heat"]:
     )
 
 # for all products
-own_use = pd.DataFrame(index=agg_ind.keys(), columns=E_products)
+own_use = pd.DataFrame(index=agg_ind.keys(), columns=E_products, dtype="float64")
 for m in E_products:
     for i in agg_ind.keys():
         own_use.loc[i, m] = own_use_disagg.loc[agg_ind[i], m].sum()
@@ -506,7 +506,7 @@ for m in E_products:
 ```{python}
 net_supply_sec_agg = supply_sec_agg - own_use
 
-net_supply_sec_agg_E_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_agg)
+net_supply_sec_agg_E_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_agg, dtype="float64")
 for m in E_agg:
     net_supply_sec_agg_E_agg[m] = net_supply_sec_agg[E_products_agg[m]].sum(axis=1)
 ```
@@ -514,7 +514,7 @@ for m in E_agg:
 ```{python}
 net_use_sec_agg = use_sec_agg - own_use
 
-net_use_sec_agg_E_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_agg)
+net_use_sec_agg_E_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_agg, dtype="float64")
 for m in E_agg:
     net_use_sec_agg_E_agg[m] = net_use_sec_agg[E_products_agg[m]].sum(axis=1)
 ```
@@ -631,7 +631,7 @@ E_balance.drop(axis=0, labels="NRG_BAL (Labels)", inplace=True)
 
 ```{python}
 E_balance_E_prod = pd.DataFrame(
-    0, index=E_balance.index, columns=E_products_SIEC.keys()
+    0, index=E_balance.index, columns=E_products_SIEC.keys(), dtype="float64"
 )
 for i in E_products_SIEC.keys():
     E_balance_E_prod[i] = E_balance[E_products_SIEC[i]].sum(axis=1)
@@ -639,8 +639,9 @@ E_balance_E_prod["Electrical energy"] = 0
 ```
 
 ```{python}
-E_balace_PEFA_frac = E_balance_E_prod.sum().div(
+E_balance_PEFA_frac = E_balance_E_prod.sum().div(
     use_sec_agg.loc["D"].where(use_sec_agg.loc["D"] != 0, np.nan)
+)
 ```
 
 ```{python}
@@ -703,7 +704,7 @@ geo_elec = E_balance["Geothermal"][
 # Supply:
 # Transformation output:
 
-# Electricity D1 (electricity only and CHP): 988708 TO_EHG_MAPE + GEP_MAPCHP TODO: check verification from Till
+# Electricity D1 (electricity only and CHP): 988708 TO_EHG_MAPE + GEP_MAPCHP 
 # Heat D1 (CHP): 92607 GHP_MAPCHP
 # Heat D3 (Heat only): 2836 GHP_MAPH
 
@@ -741,12 +742,13 @@ x_dom_D1D3_frac = x_dom[["D1", "D3"]] / x_dom[["D1", "D3"]].sum()
 ```
 
 ```{python}
-use_D = pd.DataFrame(0, index=D_sectors, columns=E_products)
+# "Split D-sector" on page 15 of the 2024 Eurogreen documentation
+use_D = pd.DataFrame(0, index=D_sectors, columns=E_products, dtype="float64")
 for e in [x for x in E_products if x not in ["Electrical energy", "Heat"]]:
-    if E_balace_PEFA_frac[e] > 1:
+    if E_balance_PEFA_frac[e] > 1:
         use_D.loc["D1", e] = use_sec_agg.loc["D", e] * D1_share_E_balance[e]
         use_D.loc["D3", e] = use_sec_agg.loc["D", e] * (1 - D1_share_E_balance[e])
-    elif E_balace_PEFA_frac[e] < 1:
+    elif E_balance_PEFA_frac[e] < 1:
         use_D.loc["D1", e] = tot_E_balance[e] * D1_share_E_balance[e]
         use_D.loc["D3", e] = tot_E_balance[e] * (1 - D1_share_E_balance[e])
         for i in D_sectors:
@@ -773,7 +775,8 @@ for e in ["Heat"]:
 
 ```{python}
 # For D2 and D3 their GROSS supply is given by gases supplied by D (own use D) and heat produced only by heat only main producers (from energy balance: D3_supply['Heat']=2836)
-supply_D = pd.DataFrame(0, index=D_sectors, columns=E_products)
+# "Split D-sector" on page 15 of the 2024 Eurogreen documentation
+supply_D = pd.DataFrame(0, index=D_sectors, columns=E_products, dtype="float64")
 for e in [
     "Derived gases (= manufactured gases excl. biogas)",
     "Natural gas (without bio)",
@@ -799,7 +802,7 @@ net_supply_D = supply_D - use_D
 # For summing over the products, we should remove negative values
 net_supply_D.clip(lower=0, inplace=True)
 
-net_supply_D_E_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_agg)
+net_supply_D_E_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_agg, dtype="float64")
 for m in E_agg:
     net_supply_D_E_agg[m] = net_supply_D[E_products_agg[m]].sum(axis=1)
 ```
@@ -808,7 +811,7 @@ for m in E_agg:
 net_use_D = use_D - supply_D
 net_use_D.clip(lower=0, inplace=True)
 
-net_use_D_E_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_agg)
+net_use_D_E_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_agg, dtype="float64")
 for m in E_agg:
     net_use_D_E_agg[m] = net_use_D[E_products_agg[m]].sum(axis=1)
 ```
@@ -830,6 +833,7 @@ Z = pd.read_excel(
     header=[0],
     index_col=[0, 1],
     skiprows=2,
+    # TODO: dtype, but the issue is that dumb pandas thinks it applies to the index as well
 )
 Z.columns = Z.index
 Z_dom = Z.loc["DOM", "DOM"]
@@ -873,6 +877,7 @@ net_use_shares.fillna(value=0, inplace=True)
 ### Trade
 
 ```{python}
+# TODO: You're here
 # We assume that the import share of supply by energy product is the same, no matter if the product is used in any industry, by households, exports or inventories
 # However, we assume that each industry first consumes their own produced goods before importing them, thus own use is calculated before accounting for the import share and the share is adjusted acordingly
 ```
