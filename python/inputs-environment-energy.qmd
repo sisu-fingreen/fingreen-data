@@ -868,7 +868,7 @@ net_supply_shares.fillna(value=0, inplace=True)
 ```{python}
 use_shares = use_sec_agg.div(use_sec_agg.sum().where(use_sec_agg.sum() != 0, np.nan))
 net_use_shares = net_use_sec_agg.div(
-    net_use_sec_agg.sum().where(net_use_sec_agg.sum() != 0, np.nan)
+    net_use_sec_agg.sum(axis="rows").where(net_use_sec_agg.sum() != 0, np.nan)
 )
 net_use_shares.fillna(value=0, inplace=True)
 ```
@@ -876,14 +876,13 @@ net_use_shares.fillna(value=0, inplace=True)
 ### Trade
 
 ```{python}
-# TODO: You're here
 # We assume that the import share of supply by energy product is the same, no matter if the product is used in any industry, by households, exports or inventories
 # However, we assume that each industry first consumes their own produced goods before importing them, thus own use is calculated before accounting for the import share and the share is adjusted acordingly
 ```
 
 ```{python}
 # with E balance aggregation
-supply_Eprd = pd.DataFrame(index=E_products, columns=supply.columns)
+supply_Eprd = pd.DataFrame(index=E_products, columns=supply.columns, dtype="float64")
 for i in E_products:
     if i in ["Gas oil and diesel oil"]:
         supply_Eprd.loc[i] = supply.loc[E_products_dict[i]].sum()
@@ -909,7 +908,7 @@ dom_Z_supply = dom_Z_demand
 imp_Z_supply = use_sec_agg.sum() - dom_Z_supply
 #
 # with E balance aggregation
-use_Eprd = pd.DataFrame(index=E_products, columns=use.columns)
+use_Eprd = pd.DataFrame(index=E_products, columns=use.columns, dtype="float64")
 for i in E_products:
     if i in ["Gas oil and diesel oil"]:
         use_Eprd.loc[i] = use.loc[E_products_dict[i]].sum()
@@ -1042,11 +1041,12 @@ loco_agg_sector = {
 Z = pd.read_excel(
     f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     sheet_name="Z WIOD Loco hybrid",
-    header=[0],
+    header=[0,1],
     index_col=[0, 1],
-    skiprows=2,
+    skiprows=[2],
 )
-Z.columns = Z.index
+# T gets read as integer and there's no nice way to tell the reading function any better for multi-level column
+Z[("DOM", "T")] = Z[("DOM", "T")].astype("float64")
 Z_dom = Z.loc["DOM", "DOM"]
 Z_imp = Z.loc["OTH", "DOM"]
 Z_exp = Z.loc["DOM", "OTH"]
@@ -1071,8 +1071,6 @@ oth_E_secs = ["A", "B"]
 bio_secs = ["A"]
 E_sectors = full_E_secs + oth_E_secs
 E_sectors.sort()
-
-sectors_D = Z_dom.index
 
 non_E_sectors = [x for x in sectors_D if x not in E_sectors]
 ```
