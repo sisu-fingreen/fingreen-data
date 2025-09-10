@@ -1089,7 +1089,7 @@ non_E_sectors = [x for x in sectors_D if x not in E_sectors]
 ##### Z
 
 ```{python}
-M_Z_E_dom = pd.DataFrame(0, index=sectors_D, columns=sectors_D)
+M_Z_E_dom = pd.DataFrame(0, index=sectors_D, columns=sectors_D, dtype="float64")
 for i in full_E_secs:
     M_Z_E_dom.loc[i] = Z_dom.loc[i]
 ```
@@ -1097,7 +1097,7 @@ for i in full_E_secs:
 ##### Findem
 
 ```{python}
-FD_Z_E_dom = pd.DataFrame(0, index=sectors_D, columns=["H", "EX"])
+FD_Z_E_dom = pd.DataFrame(0, index=sectors_D, columns=["H", "EX"], dtype="float64")
 for i in full_E_secs:
     FD_Z_E_dom.loc[i, "H"] = findem_dom.loc[i, "H"]
     FD_Z_E_dom.loc[i, "EX"] = findem_exp.loc[i]
@@ -1132,12 +1132,24 @@ secB_E = [
     "MINING_URANIUM_THORIUM",
 ]
 
+# define the column types by position: first two are object
+# everything else is float64
+loco_Z_coltypes = dict(
+    zip(
+        list(range(2172)),
+        ["object", "object"] + (["float64"] * 2170)
+    )
+)
+
 loco_Z = pd.read_excel(
     f"source-data/pisa-team-files/Locomotion_{country_code2}.xlsx",
     sheet_name="Z",
     header=[0, 1],
     index_col=[0, 1],
+    dtype=loco_Z_coltypes
 )
+# since we tell coltypes by position, make sure the n of columns is correct
+assert(loco_Z.shape[1] == 2170)
 dom = [country_code3]
 loco_regions = loco_Z.index.get_level_values(level=0).unique()
 imp_regions = [x for x in loco_regions if x not in dom]
@@ -1147,7 +1159,7 @@ imp_regions = [x for x in loco_regions if x not in dom]
 B_Z_s = (
     loco_Z.loc[dom, dom].droplevel(level=0, axis=0).loc[secB].droplevel(level=0, axis=1)
 )
-B_Z_s_sec = pd.DataFrame(index=secB, columns=sectors_D)
+B_Z_s_sec = pd.DataFrame(index=secB, columns=sectors_D, dtype="float64")
 for i in sectors_D:
     B_Z_s_sec[i] = B_Z_s[loco_agg_sector[i]].sum(axis=1)
 
@@ -1182,6 +1194,7 @@ exp_dom_B_E_share = B_exp.loc[secB_E].sum() / B_exp.sum()
 ```
 
 ```{python}
+# TODO: You are here
 # Add to FD Z E
 FD_Z_E_dom.loc["B", "H"] = findem_dom.loc["B", "H"] * fd_dom_h_B_E_share
 FD_Z_E_dom.loc["B", "EX"] = findem_exp.loc["B"] * exp_dom_B_E_share
