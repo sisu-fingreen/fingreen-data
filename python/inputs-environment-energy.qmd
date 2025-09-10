@@ -477,7 +477,7 @@ oth_use_columns = [
 oth_use = pd.DataFrame(index=E_products, columns=oth_use_columns, dtype="float64")
 for i in E_products:
     if i in ["Gas oil and diesel oil"]:
-        oth_use.loc[i] = use.loc[E_products_dict[i], oth_use_columns].sum()
+        oth_use.loc[i] = use.loc[E_products_dict[i], oth_use_columns].sum(axis="rows")
     else:
         oth_use.loc[i] = use.loc[i, oth_use_columns]
 findem = oth_use[
@@ -639,20 +639,20 @@ E_balance_E_prod["Electrical energy"] = 0
 ```
 
 ```{python}
-E_balance_PEFA_frac = E_balance_E_prod.sum().div(
+E_balance_PEFA_frac = E_balance_E_prod.sum(axis="rows").div(
     use_sec_agg.loc["D"].where(use_sec_agg.loc["D"] != 0, np.nan)
 )
 ```
 
 ```{python}
 D1_share_E_balance = (
-    E_balance_E_prod.sum()
+    E_balance_E_prod.sum(axis="rows")
     - E_balance_E_prod.loc[
         "Transformation input - electricity and heat generation - main activity producer heat only - energy use"
     ]
-) / E_balance_E_prod.sum()
+) / E_balance_E_prod.sum(axis="rows")
 D1_share_E_balance.fillna(value=0, inplace=True)
-tot_E_balance = E_balance_E_prod.sum()
+tot_E_balance = E_balance_E_prod.sum(axis="rows")
 ```
 
 ```{python}
@@ -830,16 +830,15 @@ for e in [x for x in E_products if x not in ["Electrical energy", "Heat"]]:
 Z = pd.read_excel(
     f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     sheet_name="Z WIOD Loco hybrid",
-    header=[0],
+    header=[0,1],
     index_col=[0, 1],
-    skiprows=2,
-    # TODO: dtype, but the issue is that dumb pandas thinks it applies to the index as well
+    skiprows=[2],
 )
-Z.columns = Z.index
+# T gets read as integer and there's no nice way to tell the reading function any better for multi-level column
+Z[("DOM", "T")] = Z[("DOM", "T")].astype("float64")
 Z_dom = Z.loc["DOM", "DOM"]
 sectors_D = Z_dom.index
 ```
-
 ```{python}
 net_use_sec_agg = pd.concat([net_use_sec_agg, net_use_D], axis=0)
 net_use_sec_agg.drop("D", axis=0, inplace=True)
@@ -858,10 +857,10 @@ own_use = own_use.reindex(sectors_D)
 
 ```{python}
 supply_shares = supply_sec_agg.div(
-    supply_sec_agg.sum().where(supply_sec_agg.sum() != 0, np.nan)
+    supply_sec_agg.sum(axis="rows").where(supply_sec_agg.sum() != 0, np.nan)
 )
 net_supply_shares = net_supply_sec_agg.div(
-    net_supply_sec_agg.sum().where(net_supply_sec_agg.sum() != 0, np.nan)
+    net_supply_sec_agg.sum(axis="rows").where(net_supply_sec_agg.sum() != 0, np.nan)
 )
 net_supply_shares.fillna(value=0, inplace=True)
 ```
