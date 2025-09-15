@@ -1305,6 +1305,7 @@ for i in full_E_secs:
 ##### Z
 
 ```{python}
+# Extract all the B sector imports from locomotion data
 B_Z_imp_s = (
     loco_Z.loc[imp_regions, dom]
     .droplevel(level=0, axis=0)
@@ -1313,10 +1314,12 @@ B_Z_imp_s = (
     .groupby(level=0, axis=0, sort=False)
     .sum()
 )
-B_Z_imp_s_sec = pd.DataFrame(index=secB, columns=sectors_D)
+B_Z_imp_s_sec = pd.DataFrame(index=secB, columns=sectors_D, dtype="float64")
+# Aggregate to correct industry categorization
 for i in sectors_D:
     B_Z_imp_s_sec[i] = B_Z_imp_s[loco_agg_sector[i]].sum(axis=1)
 
+# Energy share of B industry imports
 Z_B_E_imp_share = B_Z_imp_s_sec.loc[secB_E].sum() / B_Z_imp_s_sec.sum()
 ```
 
@@ -1328,13 +1331,7 @@ M_Z_E_imp.loc["B"] = Z_imp.loc["B"] * Z_B_E_imp_share
 ##### Findem
 
 ```{python}
-loco_findem = pd.read_excel(
-    f"source-data/pisa-team-files/Locomotion_{country_code2}.xlsx",
-    sheet_name="findem",
-    header=[0],
-    index_col=[0, 1],
-)
-# HH findem
+# HH findem (imports)
 fd_imp_h_B_E_share = (
     loco_findem.loc["imp", "H"].loc[secB_E].sum()
     / loco_findem.loc["imp", "H"].loc[secB].sum()
@@ -1355,23 +1352,25 @@ FD_Z_E_imp.loc["B"] = findem_imp.loc["B", "H"] * fd_imp_h_B_E_share
 
 ```{python}
 # Domestic use
-net_use_sec_agg_imp = pd.DataFrame(index=sectors_D, columns=E_products)
+net_use_sec_agg_imp = pd.DataFrame(index=sectors_D, columns=E_products, dtype="float64")
 for e in E_products:
     net_use_sec_agg_imp[e] = net_use_sec_agg[e] * supply_import_share[e]
 ```
 
 ```{python}
+# TODO: ask Till if this variable should be used in the next cell
 # We assume that where the energy flow makes up the largest proportion of the monetary flow, that to this sector the trade only reflects energy
 only_E_buyer_imp = (
     net_use_sec_agg_imp["Wood, wood waste and other solid biomass, charcoal"]
+    # calculate energy intensity per euro
     .div(Z_imp.loc["A"].where(Z_imp.loc["A"] != 0, np.nan))
-    .astype(float)
     .idxmax(skipna=True)
 )
 ```
 
 ```{python}
 # we can use domestic net supply share as we assume it to be the same as the imported one except for brown coal
+# TODO: does this assumption need adjustment for Finnish data?
 impl_price_imp = Z_imp.loc["A", only_E_buyer["A"]] / (
     net_use_sec_agg_imp.loc[
         only_E_buyer["A"], "Wood, wood waste and other solid biomass, charcoal"
