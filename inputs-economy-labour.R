@@ -9,6 +9,7 @@ source("fingreen-r-utils.R")
 # needed but not loaded to the namespace
 
 stopifnot(is_installed("writexl"))
+stopifnot(is_installed("config"))
 
 # directory setup ---------------------------------------------------------
 
@@ -22,7 +23,9 @@ create_dir_if_not_exists(results_dir, "results")
 
 # source data --------------------------------------------------------------
 
-data_year <- 2010L
+global_params <- config::get(file = "global-params.yml")
+
+data_year <- global_params$base_year
 
 # EMP_DC is employment domestic concept which means all employed in the
 # industry, not just employee status
@@ -30,7 +33,7 @@ hours_worked_and_n_workers <- get_eurostat(
   "nama_10_a64_e",
   time_format = "num",
   filters = list(
-    geo = "FI",
+    geo = global_params$geo,
     na_item = "EMP_DC",
     unit = c("THS_HW", "THS_PER"),
     time = data_year
