@@ -1182,19 +1182,20 @@ loco_findem = pd.read_excel(
 )
 # HH findem
 fd_dom_h_B_E_share = (
-    loco_findem.loc["dom", "H"].loc[secB_E].sum() / loco_findem.loc["dom", "H"].loc[secB].sum()
+    loco_findem.loc["dom", "H"].loc[secB_E].sum()
+    / loco_findem.loc["dom", "H"].loc[secB].sum()
 )
 
 # EXP
 # remove inventories
-B_exp = loco_findem.loc["exp", ["H", "G", "GFCF"]].loc[secB].sum(axis=1) +
-    loco_Z.loc[dom, imp_regions].droplevel(level=0, axis=0).loc[secB].sum(axis=1)
-
+B_exp = loco_findem.loc["exp", ["H", "G", "GFCF"]].loc[secB].sum(axis=1) + loco_Z.loc[
+    dom, imp_regions
+    ].droplevel(level=0, axis=0).loc[secB].sum(axis=1)
 exp_dom_B_E_share = B_exp.loc[secB_E].sum() / B_exp.sum()
+
 ```
 
 ```{python}
-# TODO: You are here
 # Add to FD Z E
 FD_Z_E_dom.loc["B", "H"] = findem_dom.loc["B", "H"] * fd_dom_h_B_E_share
 FD_Z_E_dom.loc["B", "EX"] = findem_exp.loc["B"] * exp_dom_B_E_share
@@ -1206,28 +1207,27 @@ FD_Z_E_dom.loc["B", "EX"] = findem_exp.loc["B"] * exp_dom_B_E_share
 
 ```{python}
 # Domestic use
-net_use_sec_agg_dom = pd.DataFrame(index=sectors_D, columns=E_products)
+net_use_sec_agg_dom = pd.DataFrame(index=sectors_D, columns=E_products, dtype="float64")
 for e in E_products:
     net_use_sec_agg_dom[e] = net_use_sec_agg[e] * (1 - supply_import_share[e])
 ```
 
 ```{python}
-# We assume that where the energy flow makes up the largest proportion of the monetary flow, that to this sector the trade only reflects energy
-only_E_buyer = pd.DataFrame(0, index=["A", "E"], columns=["out"]).squeeze()
+# We assume that where the energy flow of biomass product makes up the largest proportion of the monetary flow, that the trade only reflects energy
+only_E_buyer = pd.Series(index=["A","E"], name="out", dtype="string")
 only_E_buyer["A"] = (
+    # calculate energy flow share of A for each industry for the bioenergy product 
     (
         net_use_sec_agg_dom["Wood, wood waste and other solid biomass, charcoal"]
         * net_supply_shares.loc[
             "A", "Wood, wood waste and other solid biomass, charcoal"
         ]
     )
-    .div(Z_dom.loc["A"].where(Z_dom.loc["A"] != 0, np.nan))
-    .astype(float)
-    .idxmax(skipna=True)
+    .div(Z_dom.loc["A"].where(Z_dom.loc["A"] != 0, np.nan)) # calculate energy intensity per euro
+    .idxmax(skipna=True) # pick the highest intensity
 )
-```
 
-```{python}
+# Calculate the price of biomass
 impl_price_dom_A = Z_dom.loc["A", only_E_buyer["A"]] / (
     net_use_sec_agg_dom.loc[only_E_buyer["A"], "Wood, wood waste and other solid biomass, charcoal"]
     * net_supply_shares.loc["A", "Wood, wood waste and other solid biomass, charcoal"]
@@ -1249,7 +1249,9 @@ M_Z_E_dom.loc["A"] = (
 # we conduct this only for final demand as for Z we link it to monetary flows (see below)
 
 findem_sec_agg = pd.DataFrame(
-    index=sectors_D, columns=pd.MultiIndex.from_product([["H", "EX"], E_products])
+    index=sectors_D,
+    columns=pd.MultiIndex.from_product([["H", "EX"], E_products]),
+    dtype="float64",
 )
 for i in sectors_D:
     for e in E_products:
@@ -1273,30 +1275,6 @@ FD_Z_E_dom.loc["A", "EX"] = (
 ) * impl_price_dom_A
 ```
 
-##### Autoproduction non_E_sectors
-
-```{python}
-########################################
-########################################
-# potential issue with RAS on MEZ, but RAS not applied to energy sources modelled at this point
-# RAS_E_products=['Liquid biofuels', 'Biogas']
-########################################
-########################################
-```
-
-```{python}
-# for simplicity only consider energy provided by the designated energy sectors and hence omit autoproduction by non-energy sectors
-# removing autoproduction leads initial emissions in model to fall from 389.488 to 384.136
-
-# potential issue with RAS on MEZ, but RAS not applied to energy sources modelled at this point
-
-# for i in non_E_sectors:
-#     print(M_Z_E_dom.loc[i,i])
-
-# for i in non_E_sectors:
-#         M_Z_E_dom.loc[i,i]=Z_dom.loc[i,i]
-```
-
 ### Imports M Z E
 
 #### Full E sectors
@@ -1304,7 +1282,7 @@ FD_Z_E_dom.loc["A", "EX"] = (
 ##### Z
 
 ```{python}
-M_Z_E_imp = pd.DataFrame(0, index=sectors_D, columns=sectors_D)
+M_Z_E_imp = pd.DataFrame(0, index=sectors_D, columns=sectors_D, dtype="float64")
 for i in full_E_secs:
     M_Z_E_imp.loc[i] = Z_imp.loc[i]
 ```
@@ -1317,7 +1295,7 @@ for i in full_E_secs:
 ```
 
 ```{python}
-FD_Z_E_imp = pd.DataFrame(0, index=sectors_D, columns=["H"]).squeeze()
+FD_Z_E_imp = pd.Series(0, index=sectors_D, name="H", dtype="float64")
 for i in full_E_secs:
     FD_Z_E_imp.loc[i] = findem_imp.loc[i, "H"]
 ```
@@ -1325,42 +1303,6 @@ for i in full_E_secs:
 #### Mining
 
 ##### Z
-
-```{python}
-# For mining get the energy share from Locomotion data
-secB = [
-    "MINING_COAL",
-    "EXTRACTION_OIL",
-    "EXTRACTION_GAS",
-    "EXTRACTION_OTHER_GAS",
-    "MINING_URANIUM_THORIUM",
-    "MINING_IRON",
-    "MINING_COPPER",
-    "MINING_NICKEL",
-    "MINING_ALUMINIUM",
-    "MINING_PRECIOUS_METALS",
-    "MINING_LEAD_ZINC_TIN",
-    "MINING_OTHER_METALS",
-    "MINING_NON_METALS",
-]
-secB_E = [
-    "MINING_COAL",
-    "EXTRACTION_OIL",
-    "EXTRACTION_GAS",
-    "EXTRACTION_OTHER_GAS",
-    "MINING_URANIUM_THORIUM",
-]
-
-loco_Z = pd.read_excel(
-    f"source-data/pisa-team-files/Locomotion_{country_code2}.xlsx",
-    sheet_name="Z",
-    header=[0, 1],
-    index_col=[0, 1],
-)
-dom = [country_code3]
-loco_regions = loco_Z.index.get_level_values(level=0).unique()
-imp_regions = [x for x in loco_regions if x not in dom]
-```
 
 ```{python}
 B_Z_imp_s = (
