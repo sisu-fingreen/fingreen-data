@@ -428,7 +428,6 @@ E_products_agg = {
 }
 
 E_agg = list(E_products_agg)
-E_agg_no_nuclear = [x for x in E_agg if x not in ["Nuclear fuel"]]
 ```
 
 ```{python}
@@ -1370,7 +1369,7 @@ only_E_buyer_imp = (
 
 ```{python}
 # we can use domestic net supply share as we assume it to be the same as the imported one except for brown coal
-# TODO: does this assumption need adjustment for Finnish data?
+# TODO: does this assumption need adjustment for Finnish data? What are the energy products that are only imported
 impl_price_imp = Z_imp.loc["A", only_E_buyer["A"]] / (
     net_use_sec_agg_imp.loc[
         only_E_buyer["A"], "Wood, wood waste and other solid biomass, charcoal"
@@ -2394,7 +2393,6 @@ E_products_agg = {
 }
 
 E_agg = list(E_products_agg)
-E_agg_no_nuclear = [x for x in E_agg if x not in ["Nuclear fuel"]]
 
 
 supply.dropna(axis=0, how="all", inplace=True)
