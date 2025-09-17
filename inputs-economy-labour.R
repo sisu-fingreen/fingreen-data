@@ -81,6 +81,6 @@ results <- hours_worked_and_n_workers_transformed |>
 
 # results ----------------------------------------------------------------
 
-writexl::write-xlsx(results, path = paste0(results_dir, "hours-worked-and-employment.xlsx"))
+writexl::write_xlsx(results, path = paste0(results_dir, "hours-worked-and-employment.xlsx"))
 
 
