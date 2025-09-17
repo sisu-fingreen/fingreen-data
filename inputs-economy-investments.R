@@ -26,10 +26,64 @@ create_dir_if_not_exists(results_dir, "results")
 global_params <- config::get(file = "global-params.yml")
 
 geo <- global_params$geo
+geo3 <- global_params$geo3
+
 base_year <- global_params$base_year |> as.integer()
 
 time_start <- 2000
 time_end <- 2022
+
+# check if there is a dir for EUKLEMS data, and create one if not
+
+euklems_dir <- paste0(working_directory, "/source-data/euklems")
+
+create_dir_if_not_exists(euklems_dir, "EUKLEMS")
+
+euklems_2018 <- readr::read_csv(
+  sprintf("%s/18II_capital.csv", euklems_dir)),
+  show_col_types = FALSE
+)
+
+euklems_depreciation <- readxl::read_xlsx(
+  path = sprintf("%s/18II_capital_meta.xlsx", euklems_dir),
+  sheet = "Depreciation Rates"
+)
+
+asset_types <- c(
+  "IT",
+  "CT",
+  "SOFT_DB",
+  "TRAEQ",
+  "OMACH",
+  "OCON",
+  "RSTRUC",
+  "CULT",
+  "RD",
+  "OIPP"
+)
+
+capital_stock_2010 <- euklems_2018 |> 
+  filter(
+    iso3 == geo3,
+    var == "KQ",
+    asset %in% asset_types,
+    year == 2010L
+  )
+
+
+
+depreciation_rate_by_industry <- capital_stock |> 
+  group_by(iso3, year, isic4) |> 
+  mutate(total_stock_by_industry = sum(value)) |> 
+  ungroup() |> 
+  mutate(share_of_industry_stock = value / total_stock_by_industry) |> 
+  left_join(euklems_depreciation_rates, by = c("isic4", "asset")) |> 
+  group_by(iso3, year, isic4) |> 
+  summarise(
+    industry_depreciation_rate = sum(depreciation_rate * share_of_industry_stock),
+    .groups = "drop"
+  )
+
 
 
 net_capital_stock <- get_eurostat(
