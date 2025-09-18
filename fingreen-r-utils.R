@@ -44,6 +44,14 @@ create_dir_if_not_exists <- function(dir_path, purpose = ""){
   invisible()
 }
 
+get_unique_nonmissing_values <- function(df, var){
+  uniques <- df[[var]] |> 
+    unique() |> 
+    sort()
+  res <- uniques[!is.na(uniques)]
+  return(res)
+}
+
 # plotting -----------------------------------------------------------------
 
 save_plotly_plot <- function(plot, file, ...){
@@ -233,22 +241,29 @@ convert_eur_value_between_years <- function(x, from, to){
   return(res_df$res)
 }
 
-convert_data_from_euklems_to_fingreen_industry <- function(df, mapping, id_vars, vars_to_transform){
+convert_data_from_euklems_to_fingreen_industry <- function(
+  df,
+  mapping,
+  join_var,
+  id_vars,
+  vars_to_transform,
+  aggregation_function = sum
+){
   
   catn(
-    "Warning. Converting data from EUKLEM to fingreen industry categorization will",
+    "Warning. Converting data from EUKLEMS to fingreen industry categorization will",
     "mess with the totals over industry categories, since the mapping is many-to-many. ",
     "Also, disaggregated categories inherit total values from their parent categories. Use only with intention."
   )
   
   stopifnot(
-    identical(colnames(mapping), c("nace_r2_code", "fingreen_industry_code", "relationship", "recomposition_method"))
+    identical(colnames(mapping), c(join_var, "fingreen_industry_code", "relationship", "recomposition_method"))
   )
-  stopifnot("nace_r2_code" %in% colnames(df))
+  stopifnot(join_var %in% colnames(df))
   stopifnot(!"relationship" %in% colnames(df))
   
   df <- df %>% 
-    inner_join(mapping, by = "nace_r2_code", relationship = "many-to-many")
+    inner_join(mapping, by = join_var, relationship = "many-to-many")
   
   # Conversion logic in pieces, according to the relationship between the categories
   
@@ -256,7 +271,7 @@ convert_data_from_euklems_to_fingreen_industry <- function(df, mapping, id_vars,
   df_one_to_one <- filter(df, relationship == "one-to-one") %>% 
     select(all_of(c("fingreen_industry_code", id_vars, vars_to_transform)))
   
-  # Disaggregation is also simple, the new child categories already got the value of the parent category
+  # Disaggregation and inheritance is also simple, the new child categories already got the value of the parent category
   # in the join
   df_disaggregated <- filter(
     df,
@@ -265,14 +280,17 @@ convert_data_from_euklems_to_fingreen_industry <- function(df, mapping, id_vars,
   ) %>% 
     select(all_of(c("fingreen_industry_code", id_vars, vars_to_transform)))
   
-  # Aggregation is straightforward, just sum the child categories under the new parent
+  df_inherited <- filter(df, relationship == "recomposition" & recomposition_method == "inherit") %>% 
+    select(all_of(c("fingreen_industry_code", id_vars, vars_to_transform)))
+  
+  # Aggregation is straightforward, use given aggregation function on the child categories under the new parent
   df_aggregated <- filter(
     df,
     relationship == "aggregation" |
       (relationship == "recomposition" & recomposition_method == "aggregation")
   ) %>% 
     group_by(across(all_of(c("fingreen_industry_code", id_vars)))) %>% 
-    summarise(across(all_of(vars_to_transform), .fns = sum), .groups = "drop")
+    summarise(across(all_of(vars_to_transform), .fns = aggregation_function), .groups = "drop")
   
   # One last thing is averaging, for categories which are partially overlapping
   
@@ -284,7 +302,8 @@ convert_data_from_euklems_to_fingreen_industry <- function(df, mapping, id_vars,
     df_one_to_one,
     df_disaggregated,
     df_aggregated,
-    df_averaged
+    df_averaged,
+    df_inherited
   )
   return(res)
 }
