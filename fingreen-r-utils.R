@@ -44,6 +44,14 @@ create_dir_if_not_exists <- function(dir_path, purpose = ""){
   invisible()
 }
 
+get_unique_nonmissing_values <- function(df, var){
+  uniques <- df[[var]] |> 
+    unique() |> 
+    sort()
+  res <- uniques[!is.na(uniques)]
+  return(res)
+}
+
 # plotting -----------------------------------------------------------------
 
 save_plotly_plot <- function(plot, file, ...){
