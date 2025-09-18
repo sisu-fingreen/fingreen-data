@@ -100,6 +100,7 @@ gross_output_long <- gross_output %>%
   select(nace_r2_code, year, gross_output_eur) %>%
   convert_data_from_euklems_to_fingreen_industry(
     mapping = euklems_industries_to_fingreen_industries_map,
+    join_var = "nace_r2_code",
     id_vars = "year",
     vars_to_transform = "gross_output_eur"
   )
@@ -121,6 +122,7 @@ hours_worked_long <- hours_worked %>%
   select(nace_r2_code, year, hours_worked) %>% 
   convert_data_from_euklems_to_fingreen_industry(
     mapping = euklems_industries_to_fingreen_industries_map,
+    join_var = "nace_r2_code",
     id_vars = "year",
     vars_to_transform = "hours_worked"
   )
@@ -163,6 +165,7 @@ gfcf_long <- gfcf %>%
   select(nace_r2_code, year, gfcf_meur) %>%
   convert_data_from_euklems_to_fingreen_industry(
     mapping = euklems_industries_to_fingreen_industries_map,
+    join_var = "nace_r2_code",
     id_vars = "year",
     vars_to_transform = "gfcf_meur"
   )
@@ -179,6 +182,7 @@ capital_stock_long <- capital_stock %>%
   mutate(net_capital_stock_meur = if_else(nace_r2_code == "T", 0, net_capital_stock_meur)) %>% 
   convert_data_from_euklems_to_fingreen_industry(
     mapping = euklems_industries_to_fingreen_industries_map,
+    join_var = "nace_r2_code",
     id_vars = "year",
     vars_to_transform = "net_capital_stock_meur"
   )
