@@ -11,160 +11,144 @@ source("fingreen-r-utils.R")
 
 stopifnot(is_installed("writexl"))
 
+global_params <- config::get(file = "global-params.yml")
+
 # directory setup ---------------------------------------------------------
 
 working_directory <- getwd()
 
-graphs_dir <- paste0(working_directory, "/graphs/")
+graphs_dir <- paste0(working_directory, "/graphs/inputs-economy/investment/")
 create_dir_if_not_exists(graphs_dir, "graphs")
 
-results_dir <- paste0(working_directory, "/results/")
+results_dir <- paste0(working_directory, "/results/inputs-economy/investment/")
 create_dir_if_not_exists(results_dir, "results")
 
-# source data --------------------------------------------------------------
+# functions --------------------------------------------------------------
 
-global_params <- config::get(file = "global-params.yml")
+create_data_depreciation_rates <- function() {
+  geo <- global_params$geo
+  geo3 <- global_params$geo3
 
-geo <- global_params$geo
-geo3 <- global_params$geo3
+  base_year <- global_params$base_year |> as.integer()
 
-base_year <- global_params$base_year |> as.integer()
+  time_start <- 2000
+  time_end <- 2022
 
-time_start <- 2000
-time_end <- 2022
+  # check if there is a dir for EUKLEMS data, and create one if not
 
-# check if there is a dir for EUKLEMS data, and create one if not
+  euklems_dir <- paste0(working_directory, "/source-data/euklems")
 
-euklems_dir <- paste0(working_directory, "/source-data/euklems")
-
-create_dir_if_not_exists(euklems_dir, "EUKLEMS")
-
-euklems_2018 <- readr::read_csv(
-  sprintf("%s/18II_capital.csv", euklems_dir)),
-  show_col_types = FALSE
-)
-
-euklems_depreciation <- readxl::read_xlsx(
-  path = sprintf("%s/18II_capital_meta.xlsx", euklems_dir),
-  sheet = "Depreciation Rates"
-)
-
-asset_types <- c(
-  "IT",
-  "CT",
-  "SOFT_DB",
-  "TRAEQ",
-  "OMACH",
-  "OCON",
-  "RSTRUC",
-  "CULT",
-  "RD",
-  "OIPP"
-)
-
-capital_stock_2010 <- euklems_2018 |> 
-  filter(
-    iso3 == geo3,
-    var == "KQ",
-    asset %in% asset_types,
-    year == 2010L
+  euklems_2018 <- readr::read_csv(
+    sprintf("%s/18II_capital.csv", euklems_dir),
+    show_col_types = FALSE
   )
 
+  euklems_depreciation <- readxl::read_xlsx(
+    path = sprintf("%s/18II_capital_meta.xlsx", euklems_dir),
+    sheet = "Depreciation Rates"
+  ) |>
+    select(-description) |>
+    tidyr::pivot_longer(
+      cols = !all_of("isic4"),
+      names_to = "asset",
+      values_to = "depreciation_rate",
+      names_transform = toupper
+    )
 
-
-depreciation_rate_by_industry <- capital_stock |> 
-  group_by(iso3, year, isic4) |> 
-  mutate(total_stock_by_industry = sum(value)) |> 
-  ungroup() |> 
-  mutate(share_of_industry_stock = value / total_stock_by_industry) |> 
-  left_join(euklems_depreciation_rates, by = c("isic4", "asset")) |> 
-  group_by(iso3, year, isic4) |> 
-  summarise(
-    industry_depreciation_rate = sum(depreciation_rate * share_of_industry_stock),
-    .groups = "drop"
+  asset_types <- c(
+    "IT",
+    "CT",
+    "SOFT_DB",
+    "TRAEQ",
+    "OMACH",
+    "OCON",
+    "RSTRUC",
+    "CULT",
+    "RD",
+    "OIPP"
   )
 
-
-
-net_capital_stock <- get_eurostat(
-  id = "nama_10_nfa_st",
-  time_format = "num",
-  filters = list(
-    geo = geo,
-    time = time_start:time_end |> as.character(),
-    asset10 = "N11N", # total fixed assets net
-    unit = "CLV20_MEUR",
-    freq = "A"
+  euklems_2018_isic4_to_fingreen_industry_map <- readxl::read_xlsx(
+    "source-data/mappings/euklems-2018-isic4-to-fingreen-industry-map.xlsx",
+    sheet = "map"
   )
-) |> 
-  mutate(time = as.integer(time))
 
-gfcf <- get_eurostat(
-  id = "nama_10_a64_p5",
-  time_format = "num",
-  filters = list(
-    geo = geo,
-    time = time_start:time_end |> as.character(),
-    asset10 = "N11G", # total fixed assets gross
-    unit = "CLV20_MEUR",
-    freq = "A",
-    na_item = "P51G" # gfcf
-  )
-) |> 
-  mutate(time = as.integer(time))
+  # processing -------------------------------------------------------------
 
+  stopifnot(base_year %in% euklems_2018$year)
+  capital_stock_base_year <- euklems_2018 |>
+    filter(
+      iso3 == geo3,
+      var == "KQ",
+      asset %in% asset_types,
+      year == base_year
+    ) |>
+    # unify isi4c code form with the depreciation data
+    mutate(
+      isic4 = isic4 |>
+        gsub("_", "-", x = _) |>
+        gsub("[A-Z](\\d)", "\\1", x = _, perl = T)
+    )
 
-# transform industry stucture ---------------------------------------------------------
+  # Figure of the assets by industry
+  # capital_stock_base_year |>
+  #   ggplot(aes(isic4, value, fill = asset)) +
+  #   geom_col(position = "stack")
 
-transform_industry_structure_nama <- function(df, industry_mapping){
-  res <- df |> 
-    inner_join(
-      industry_mapping,
-      by = c("nace_r2" = "eurostat_nace_r2"),
-      relationship = "many-to-many"
-    ) |> 
-    group_by(geo, time, fingreen_industry_code) |> 
+  # Due to the nature of the many-to-many mapping,
+  # the totals will be off, but it does not matter
+  # as in the end we are just calculating the
+  # best estimate for the depreciation rate
+  # TODO: ST category is dropping
+  capital_stock_by_fingreen_industry <- capital_stock_base_year |>
+    convert_data_from_euklems_to_fingreen_industry(
+      mapping = euklems_2018_isic4_to_fingreen_industry_map,
+      join_var = "isic4",
+      id_vars = c("iso3", "asset", "year"),
+      vars_to_transform = "value"
+    )
+
+  # For the rates, the aggregated cases must use mean instead of
+  # the default sum
+  euklems_depreciation_by_fingreen_industry <- euklems_depreciation |>
+    convert_data_from_euklems_to_fingreen_industry(
+      mapping = euklems_2018_isic4_to_fingreen_industry_map,
+      join_var = "isic4",
+      id_vars = c("asset"),
+      vars_to_transform = "depreciation_rate",
+      aggregation_function = mean
+    )
+
+  depreciation_rate_by_fingreen_industry <- capital_stock_by_fingreen_industry |>
+    group_by(iso3, year, fingreen_industry_code) |>
+    mutate(total_stock_by_industry = sum(value)) |>
+    ungroup() |>
+    mutate(share_of_industry_stock = value / total_stock_by_industry) |>
+    left_join(
+      euklems_depreciation_by_fingreen_industry,
+      by = c("fingreen_industry_code", "asset")
+    ) |>
+    group_by(iso3, year, fingreen_industry_code) |>
     summarise(
-      values = sum(values * coalesce(disaggregation_coefficient, 1), na.rm = T),
+      industry_depreciation_rate = sum(
+        depreciation_rate * share_of_industry_stock
+      ),
       .groups = "drop"
     )
 
-  return(res)
+  # results ----------------------------------------------------------------
+
+  res <- depreciation_rate_by_fingreen_industry |>
+    tidyr::pivot_wider(
+      names_from = fingreen_industry_code,
+      values_from = industry_depreciation_rate
+    )
 }
 
-eurostat_nama_industry_to_fingreen_industry_map <- readxl::read_xlsx(
-  "source-data/mappings/eurostat-nama-industry-to-fingreen-industry-map.xlsx",
-  sheet = "nama"
-)
 
-net_capital_stock_transform <- net_capital_stock |> 
-  transform_industry_structure_nama(
-    industry_mapping = filter(eurostat_nama_industry_to_fingreen_industry_map, relationship != "extra")
-  ) |> 
-  rename(net_capital_stock = values)
+# write results ----------------------------------------------------------
 
-gfcf_transform <- gfcf |> 
-  transform_industry_structure_nama(
-    industry_mapping = filter(eurostat_nama_industry_to_fingreen_industry_map, relationship != "extra")
-  ) |> 
-  rename(gfcf = values)
-
-
-# calculate cfc rate -----------------------------------------------------
-
-# Calculate the rate of consumption of fixed capital
-# This gives crazy results so another way must be found
-cfc_rate <- net_capital_stock_transform |> 
-  left_join(gfcf_transform, by = c("geo", "time", "fingreen_industry_code")) |> 
-  group_by(geo, fingreen_industry_code) |>
-  mutate(
-    cfc = lag(net_capital_stock) + gfcf - net_capital_stock,
-    cfc_rate = cfc / net_capital_stock
-  ) |> 
-  ungroup() |> 
-  filter(time != min(time)) |> 
-  group_by(geo, fingreen_industry_code) |> 
-  summarise(avg_cfc_rate = mean(cfc_rate), .groups = "drop")
-
-
-
+create_data_depreciation_rates() |> 
+  writexl::write_xlsx(
+    path = sprintf("%s/depreciation-rates.xlsx", results_dir)
+  )
