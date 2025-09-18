@@ -233,7 +233,14 @@ convert_eur_value_between_years <- function(x, from, to){
   return(res_df$res)
 }
 
-convert_data_from_euklems_to_fingreen_industry <- function(df, mapping, join_var, id_vars, vars_to_transform){
+convert_data_from_euklems_to_fingreen_industry <- function(
+  df,
+  mapping,
+  join_var,
+  id_vars,
+  vars_to_transform,
+  aggregation_function = sum
+){
   
   catn(
     "Warning. Converting data from EUKLEMS to fingreen industry categorization will",
@@ -268,14 +275,14 @@ convert_data_from_euklems_to_fingreen_industry <- function(df, mapping, join_var
   df_inherited <- filter(df, relationship == "recomposition" & recomposition_method == "inherit") %>% 
     select(all_of(c("fingreen_industry_code", id_vars, vars_to_transform)))
   
-  # Aggregation is straightforward, just sum the child categories under the new parent
+  # Aggregation is straightforward, use given aggregation function on the child categories under the new parent
   df_aggregated <- filter(
     df,
     relationship == "aggregation" |
       (relationship == "recomposition" & recomposition_method == "aggregation")
   ) %>% 
     group_by(across(all_of(c("fingreen_industry_code", id_vars)))) %>% 
-    summarise(across(all_of(vars_to_transform), .fns = sum), .groups = "drop")
+    summarise(across(all_of(vars_to_transform), .fns = aggregation_function), .groups = "drop")
   
   # One last thing is averaging, for categories which are partially overlapping
   
