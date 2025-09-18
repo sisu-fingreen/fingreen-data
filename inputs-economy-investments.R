@@ -99,7 +99,6 @@ create_data_depreciation_rates <- function() {
   # the totals will be off, but it does not matter
   # as in the end we are just calculating the
   # best estimate for the depreciation rate
-  # TODO: ST category is dropping
   capital_stock_by_fingreen_industry <- capital_stock_base_year |>
     convert_data_from_euklems_to_fingreen_industry(
       mapping = euklems_2018_isic4_to_fingreen_industry_map,
@@ -135,7 +134,16 @@ create_data_depreciation_rates <- function() {
       ),
       .groups = "drop"
     )
-
+  
+  unique_fingreen_industry_codes_in_map <- get_unique_nonmissing_values(
+    df = euklems_2018_isic4_to_fingreen_industry_map,
+    var = "fingreen_industry_code"
+  )
+  unique_fingreen_industry_codes_in_result <- get_unique_nonmissing_values(
+    df = depreciation_rate_by_fingreen_industry,
+    var = "fingreen_industry_code"
+  )
+  stopifnot(identical(unique_fingreen_industry_codes_in_map, unique_fingreen_industry_codes_in_result))
   # results ----------------------------------------------------------------
 
   res <- depreciation_rate_by_fingreen_industry |>
@@ -143,8 +151,11 @@ create_data_depreciation_rates <- function() {
       names_from = fingreen_industry_code,
       values_from = industry_depreciation_rate
     )
+  
+  stopifnot(identical(ncol(res), 41L))
+  
+  return(res)
 }
-
 
 # write results ----------------------------------------------------------
 
