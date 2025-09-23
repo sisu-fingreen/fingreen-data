@@ -2,9 +2,7 @@ import numpy as np
 import pandas as pd
 import math
 
-
 class parse_WIOD:
-    a_country = ["FIN"]
     EU_countries = [
         "AUT",
         "BEL",
@@ -95,9 +93,11 @@ class parse_WIOD:
     }
 
     @classmethod
-    def set_class_indices(cls, IO):
+    def set_class_indices(cls, IO, country: list):
         cls.sectors = list(IO.index.get_level_values(0).unique())
         cls.regions = list(IO.index.get_level_values(1).unique())
+        assert set(country).issubset(set(cls.regions)), "Country should be list of one or more three letter country codes found in WIOD"
+        cls.a_country = country
         ################################################################
         cls.y_cat = [
             x
@@ -108,7 +108,8 @@ class parse_WIOD:
         cls.non_EU_countries = [x for x in cls.regions if x not in cls.EU_countries]
         cls.other_countries = [x for x in cls.regions if x not in cls.a_country]
 
-    def __init__(self, IO):
+    def __init__(self, IO, country: list[str]):
+        self.a_country = country
         self.base_WIOD(IO)
 
     def base_WIOD(self, IO):
@@ -139,6 +140,7 @@ class parse_WIOD:
         self.L = np.linalg.inv((np.identity(len(self.A)) - self.A).to_numpy())
         self.calc_country_IO()
 
+    
     def calc_country_IO(self):
         self.Z_U = self.Z[self.a_country].groupby(level=1, sort=False).sum()
         self.Z_dom = self.Z.loc[self.a_country, self.a_country]

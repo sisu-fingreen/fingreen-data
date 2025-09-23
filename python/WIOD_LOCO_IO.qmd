@@ -40,8 +40,8 @@ WIOD_cyp = pd.read_excel(
     skiprows=[5],
     nrows=2464,
 )
-parse_WIOD.set_class_indices(WIOD_cyp)
-IO = parse_WIOD(IO=WIOD_cyp)
+parse_WIOD.set_class_indices(WIOD_cyp, country=["FIN"])
+IO = parse_WIOD(IO=WIOD_cyp, country=["FIN"])
 pickle_out = open(f"objects/WIOD_cyp_{year}.pickle", "wb")
 pickle.dump(
     {

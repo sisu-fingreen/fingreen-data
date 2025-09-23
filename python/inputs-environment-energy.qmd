@@ -1357,7 +1357,6 @@ for e in E_products:
 ```
 
 ```{python}
-# TODO: ask Till if this variable should be used in the next cell
 # We assume that where the energy flow makes up the largest proportion of the monetary flow, that to this sector the trade only reflects energy
 only_E_buyer_imp = (
     net_use_sec_agg_imp["Wood, wood waste and other solid biomass, charcoal"]
@@ -1372,7 +1371,7 @@ only_E_buyer_imp = (
 # TODO: does this assumption need adjustment for Finnish data? What are the energy products that are only imported
 impl_price_imp = Z_imp.loc["A", only_E_buyer["A"]] / (
     net_use_sec_agg_imp.loc[
-        only_E_buyer["A"], "Wood, wood waste and other solid biomass, charcoal"
+        only_E_buyer_imp["A"], "Wood, wood waste and other solid biomass, charcoal"
     ]
     * net_supply_shares.loc["A", "Wood, wood waste and other solid biomass, charcoal"]
 )
