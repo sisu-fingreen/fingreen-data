@@ -22,7 +22,13 @@ from WIOD_IO import parse_WIOD
 # import floweaver as fw
 ```
 
+## Params
 
+```{python}
+country_code3 = "FIN"
+country_code2 = "FI"
+year = 2010
+```
 
 ## Load Data
 
@@ -30,7 +36,6 @@ from WIOD_IO import parse_WIOD
 
 ```{python}
 # os.chdir('objects/')
-year = 2010
 WIOD_cyp = pd.read_excel(
     f"source-data/wiod/WIOT{year}_Nov16_ROW.xlsb",
     engine="pyxlsb",
@@ -40,8 +45,8 @@ WIOD_cyp = pd.read_excel(
     skiprows=[5],
     nrows=2464,
 )
-parse_WIOD.set_class_indices(WIOD_cyp, country=["FIN"])
-IO = parse_WIOD(IO=WIOD_cyp, country=["FIN"])
+parse_WIOD.set_class_indices(WIOD_cyp, country=[country_code3])
+IO = parse_WIOD(IO=WIOD_cyp, country=[country_code3])
 pickle_out = open(f"objects/WIOD_cyp_{year}.pickle", "wb")
 pickle.dump(
     {
@@ -61,7 +66,6 @@ del IO
 ```
 
 ```{python}
-year = 2010
 # os.chdir('objects')
 IO = pickle.load(open(f"objects/WIOD_cyp_{year}.pickle", "rb"))
 ```
@@ -315,7 +319,7 @@ x_inv_diag = np.diag(x_inv)
 #### Aggregate
 
 ```{python}
-domestic = ["FIN"]
+domestic = [country_code3]
 abroad = [x for x in regions if x not in domestic]
 ```
 
@@ -535,7 +539,7 @@ WIOD_LOCO_Z.fillna(value=0, inplace=True)
 
 ```{python}
 with pd.ExcelWriter(
-    "source-data/pisa-team-files/WIOD_FI_clear_check.xlsx", engine="openpyxl", mode="w"
+    f"source-data/pisa-team-files/WIOD_{country_code2}_clear_check.xlsx", engine="openpyxl", mode="w"
 ) as writer:
     # A_agg.to_excel(writer, sheet_name='A agg Locomotion')
     # WIOD_LOCO.to_excel(writer,sheet_name='A WIOD Loco hybrid')
@@ -548,15 +552,15 @@ with pd.ExcelWriter(
 #### WIOD
 
 ```{python}
-domestic = ["FIN"]
+domestic = [country_code3]
 ```
 
 ```{python}
 findem_cat = ["dom", "imp", "exp"]
 findem_wiod = {}
-findem_wiod["dom"] = IO["Y domestic"].loc["FIN", "FIN"]
-findem_wiod["imp"] = IO["Y imports"]["FIN"]
-findem_wiod["exp"] = IO["Y exports"].loc["FIN"]
+findem_wiod["dom"] = IO["Y domestic"].loc[country_code3, country_code3]
+findem_wiod["imp"] = IO["Y imports"][country_code3]
+findem_wiod["exp"] = IO["Y exports"].loc[country_code3]
 findem_wiod["exp"]["Z"] = IO["Z exports"].sum(axis=1).values
 ```
 
@@ -706,7 +710,7 @@ for e in ["dom", "imp", "exp"]:
 ```{python}
 # Add intermediate exports
 WIOD_LOCO_Z = pd.read_excel(
-    f"source-data/pisa-team-files/WIOD_FI_clear_check.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}_clear_check.xlsx",
     header=[0, 1],
     index_col=[0, 1],
     sheet_name="Z WIOD Loco hybrid",
@@ -722,7 +726,7 @@ findem_wiod_loco.loc["exp", "Z"] = WIOD_LOCO_Z.loc["DOM", "OTH"].sum(axis=1).val
 
 ```{python}
 with pd.ExcelWriter(
-    "source-data/pisa-team-files/WIOD_FI_clear_check.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}_clear_check.xlsx",
     engine="openpyxl",
     mode="a",
     if_sheet_exists="overlay",
@@ -736,7 +740,7 @@ There is a discrepancy within D between Z+findem and output due to the merging o
 
 ```{python}
 findem = pd.read_excel(
-    "source-data/pisa-team-files/WIOD_FI_clear_check.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}_clear_check.xlsx",
     sheet_name="findem wiod-loco",
     header=[0],
     index_col=[0, 1],
@@ -745,7 +749,7 @@ findem_dom = findem.loc["dom"]
 findem_exp = findem.loc["exp"]
 
 Z = pd.read_excel(
-    "source-data/pisa-team-files/WIOD_FI_clear_check.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}_clear_check.xlsx",
     sheet_name="Z WIOD Loco hybrid",
     header=[0, 1],
     index_col=[0, 1],
@@ -790,9 +794,9 @@ U = pd.read_excel(
     sheet_name="amatrix",
 )
 U.dropna(axis=0, how="any", inplace=True)
-U.loc["FIN"].sum()["STEAM_HOT_WATER"]
+U.loc[country_code3].sum()["STEAM_HOT_WATER"]
 
-D3_adj_fac = U.loc["FIN"].sum()["STEAM_HOT_WATER"] / A_colsum["D3"]
+D3_adj_fac = U.loc[country_code3].sum()["STEAM_HOT_WATER"] / A_colsum["D3"]
 ```
 
 ```{python}
@@ -819,7 +823,7 @@ x_new_dom = pd.DataFrame(x_new_dom, index=A_new_dom.index).squeeze()
 
 ```{python}
 with pd.ExcelWriter(
-    "source-data/pisa-team-files/WIOD_FI_clear_check_adj_D3.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}_clear_check_adj_D3.xlsx",
     engine="openpyxl",
     mode="w",
 ) as writer:
