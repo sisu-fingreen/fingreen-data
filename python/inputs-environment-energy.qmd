@@ -1367,14 +1367,13 @@ only_E_buyer_imp = (
 ```
 
 ```{python}
-# we can use domestic net supply share as we assume it to be the same as the imported one except for brown coal
+# we can use domestic net supply share (of each industry for each energy product) as we assume it to be the same as the imported one except for brown coal
 # TODO: does this assumption need adjustment for Finnish data? What are the energy products that are only imported
-impl_price_imp = Z_imp.loc["A", only_E_buyer["A"]] / (
-    net_use_sec_agg_imp.loc[
-        only_E_buyer_imp["A"], "Wood, wood waste and other solid biomass, charcoal"
-    ]
-    * net_supply_shares.loc["A", "Wood, wood waste and other solid biomass, charcoal"]
-)
+
+impl_price_imp = Z_imp.loc['A',only_E_buyer_imp] / (
+    net_use_sec_agg_imp.loc[only_E_buyer_imp,'Wood, wood waste and other solid biomass, charcoal']
+    * net_supply_shares.loc['A','Wood, wood waste and other solid biomass, charcoal']
+    )
 ```
 
 ```{python}
@@ -1393,11 +1392,12 @@ M_Z_E_imp.loc["A"] = (
 imp_net_supply_shares = net_supply_shares.copy()
 for e in E_products:
     # As 'Brown coal and peat' is only imported, we do not have a domestic supply structure to base imported supply on. However, is is straightforward to assume that as hard coal, this is provided by sector 'B'.
+    # TODO: This is where we need to adjust assumptions for different countries
     if e == "Brown coal and peat":
-        imp_net_supply_shares[e] = 0
-        imp_net_supply_shares.loc["B", e] = 1
+        imp_net_supply_shares[e] = 0.0
+        imp_net_supply_shares.loc["B", e] = 1.0
     elif supply_import_share[e] == 0:
-        imp_net_supply_shares[e] = 0
+        imp_net_supply_shares[e] = 0.0
 ```
 
 ```{python}
