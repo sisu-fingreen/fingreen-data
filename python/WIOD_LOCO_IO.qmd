@@ -25,7 +25,7 @@ from WIOD_IO import parse_WIOD
 ## Params
 
 ```{python}
-country_code3 = "FIN"
+country_code3 = "ITA"
 country_code2 = country_code3[:2]
 year = 2010
 ```
