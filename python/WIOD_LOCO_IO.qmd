@@ -539,7 +539,7 @@ WIOD_LOCO_Z.fillna(value=0, inplace=True)
 
 ```{python}
 with pd.ExcelWriter(
-    f"source-data/pisa-team-files/WIOD_{country_code2}_clear_check.xlsx", engine="openpyxl", mode="w"
+    f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx", engine="openpyxl", mode="w"
 ) as writer:
     # A_agg.to_excel(writer, sheet_name='A agg Locomotion')
     # WIOD_LOCO.to_excel(writer,sheet_name='A WIOD Loco hybrid')
@@ -710,7 +710,7 @@ for e in ["dom", "imp", "exp"]:
 ```{python}
 # Add intermediate exports
 WIOD_LOCO_Z = pd.read_excel(
-    f"source-data/pisa-team-files/WIOD_{country_code2}_clear_check.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     header=[0, 1],
     index_col=[0, 1],
     sheet_name="Z WIOD Loco hybrid",
@@ -726,7 +726,7 @@ findem_wiod_loco.loc["exp", "Z"] = WIOD_LOCO_Z.loc["DOM", "OTH"].sum(axis=1).val
 
 ```{python}
 with pd.ExcelWriter(
-    f"source-data/pisa-team-files/WIOD_{country_code2}_clear_check.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     engine="openpyxl",
     mode="a",
     if_sheet_exists="overlay",
@@ -740,7 +740,7 @@ There is a discrepancy within D between Z+findem and output due to the merging o
 
 ```{python}
 findem = pd.read_excel(
-    f"source-data/pisa-team-files/WIOD_{country_code2}_clear_check.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     sheet_name="findem wiod-loco",
     header=[0],
     index_col=[0, 1],
@@ -749,7 +749,7 @@ findem_dom = findem.loc["dom"]
 findem_exp = findem.loc["exp"]
 
 Z = pd.read_excel(
-    f"source-data/pisa-team-files/WIOD_{country_code2}_clear_check.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     sheet_name="Z WIOD Loco hybrid",
     header=[0, 1],
     index_col=[0, 1],
@@ -777,62 +777,21 @@ A_new_imp = Z_imp @ np.diag(x_new_dom_inv.squeeze())
 A_new_imp.columns = A_new_imp.index
 
 A_new_imp_share = A_new_imp / A_new_dom
-```
 
-##### Adjust D3
-
-```{python}
-# Current value
-A_colsum = (A_new_imp + A_new_dom).sum()
-A_colsum["D3"]
-
-# Locomotion value:
-U = pd.read_excel(
-    f"source-data/pisa-team-files/economy_R.xlsx",
-    header=[3],
-    index_col=[0, 1],
-    sheet_name="amatrix",
-)
-U.dropna(axis=0, how="any", inplace=True)
-U.loc[country_code3].sum()["STEAM_HOT_WATER"]
-
-D3_adj_fac = U.loc[country_code3].sum()["STEAM_HOT_WATER"] / A_colsum["D3"]
-```
-
-```{python}
-A_new_dom["D3"] = A_new_dom["D3"] * D3_adj_fac
-A_new_imp["D3"] = A_new_imp["D3"] * D3_adj_fac
-```
-
-```{python}
-# exclude inventories from final demand
-final_demand_domestic = (findem_dom + findem_exp)[["H", "G", "GFCF", "Z"]].sum(axis=1)
-```
-
-```{python}
-# correct X and Z based on the new final demand with inventories excluded
-L_dom_new = np.linalg.inv((np.identity(len(A_new_dom)) - A_new_dom).to_numpy())
-x_new_dom = L_dom_new @ final_demand_domestic
-x_new_dom_diag = np.diag(x_new_dom)
-Z_new_dom = np.matmul(A_new_dom.values, x_new_dom_diag)
-Z_new_dom = pd.DataFrame(Z_new_dom, index=A_new_dom.index, columns=A_new_dom.columns)
-x_new_dom = pd.DataFrame(x_new_dom, index=A_new_dom.index).squeeze()
 ```
 
 ##### Export
-
 ```{python}
 with pd.ExcelWriter(
-    f"source-data/pisa-team-files/WIOD_{country_code2}_clear_check_adj_D3.xlsx",
+    f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     engine="openpyxl",
-    mode="w",
+    mode="a",
+    if_sheet_exists="overlay",
 ) as writer:
-    x_new_dom.to_excel(writer, sheet_name="x dom")
-    A_new_dom.to_excel(writer, sheet_name="A dom")
-    A_new_imp_share.to_excel(writer, sheet_name="A imp share")
-    Z_new_dom.to_excel(writer, sheet_name="Z dom")
-    findem.to_excel(writer, sheet_name="final demand")
-    
+    x_new_dom.to_excel(writer, sheet_name="x dom new")
+    A_new_dom.to_excel(writer, sheet_name="A new dom")
+    A_new_imp.to_excel(writer, sheet_name="A new imp")
+    A_new_imp_share.to_excel(writer, sheet_name="A new imp share")
 ```
 
 
