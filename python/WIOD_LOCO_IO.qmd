@@ -532,7 +532,7 @@ for m in agg_region:
 ```
 
 ```{python}
-WIOD_LOCO_Z.fillna(value=0, inplace=True)
+WIOD_LOCO_Z.fillna(value=0.0, inplace=True)
 ```
 
 #### Export
@@ -715,7 +715,7 @@ WIOD_LOCO_Z = pd.read_excel(
 ```
 
 ```{python}
-findem_wiod_loco["Z"] = 0
+findem_wiod_loco["Z"] = 0.0
 findem_wiod_loco.loc["exp", "Z"] = WIOD_LOCO_Z.loc["DOM", "OTH"].sum(axis=1).values
 ```
 
