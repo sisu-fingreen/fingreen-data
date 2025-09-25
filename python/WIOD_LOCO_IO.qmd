@@ -541,9 +541,6 @@ WIOD_LOCO_Z.fillna(value=0, inplace=True)
 with pd.ExcelWriter(
     f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx", engine="openpyxl", mode="w"
 ) as writer:
-    # A_agg.to_excel(writer, sheet_name='A agg Locomotion')
-    # WIOD_LOCO.to_excel(writer,sheet_name='A WIOD Loco hybrid')
-    # x_WIOD_LOCO.to_excel(writer,sheet_name='x WIOD Loco hybrid')
     WIOD_LOCO_Z.to_excel(writer, sheet_name="Z WIOD Loco hybrid")
 ```
 
@@ -729,7 +726,7 @@ with pd.ExcelWriter(
     f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     engine="openpyxl",
     mode="a",
-    if_sheet_exists="overlay",
+    if_sheet_exists="error",
 ) as writer:
     findem_wiod_loco.to_excel(writer, sheet_name="findem wiod-loco")
 ```
@@ -786,7 +783,7 @@ with pd.ExcelWriter(
     f"source-data/pisa-team-files/WIOD_{country_code2}.xlsx",
     engine="openpyxl",
     mode="a",
-    if_sheet_exists="overlay",
+    if_sheet_exists="error",
 ) as writer:
     x_new_dom.to_excel(writer, sheet_name="x dom new")
     A_new_dom.to_excel(writer, sheet_name="A new dom")
