@@ -1647,7 +1647,7 @@ for e in E_products_agg.keys():
 ```{python}
 # Cell specific source structure
 source_str = pd.DataFrame(
-    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=sectors_D
+    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=sectors_D, dtype="float64"
 )
 for i in sectors_D:
     for j in sectors_D:
@@ -1663,11 +1663,12 @@ for i in sectors_D:
 source_str_agg_E = pd.DataFrame(
     index=pd.MultiIndex.from_product([E_products_agg.keys(), sectors_D]),
     columns=sectors_D,
+    dtype="float64",
 )
 for e in E_products_agg.keys():
     source_str_agg_E.loc[e] = (
         source_str.loc[E_products_agg[e]]
-        .groupby(level=1, axis=0, sort=False)
+        .groupby(level=1, sort=False)
         .sum()
         .values
     )
@@ -1677,10 +1678,9 @@ for e in E_products_agg.keys():
 
 ```{python}
 with pd.ExcelWriter(
-    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS_clear_check_jan2025.xlsx",
+    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS_clear_check.xlsx",
     engine="openpyxl",
-    mode="a",
-    if_sheet_exists="replace",
+    mode="w",
 ) as writer:
     Z_E_table.to_excel(writer, sheet_name="Z E dom")
     A_E_table.to_excel(writer, sheet_name="A E dom")
@@ -1690,6 +1690,7 @@ with pd.ExcelWriter(
     A_E_table_agg_E.to_excel(writer, sheet_name="A E dom agg E")
     source_str_agg_E.to_excel(writer, sheet_name="source share dom agg E")
     source_str.to_excel(writer, sheet_name="source share dom")
+
 ```
 
 ## Imports Z E
