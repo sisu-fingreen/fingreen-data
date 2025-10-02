@@ -1310,7 +1310,7 @@ B_Z_imp_s = (
     .droplevel(level=0, axis=0)
     .loc[secB]
     .droplevel(level=0, axis=1)
-    .groupby(level=0, axis=0, sort=False)
+    .groupby(level=0, sort=False)
     .sum()
 )
 B_Z_imp_s_sec = pd.DataFrame(index=secB, columns=sectors_D, dtype="float64")
@@ -1406,7 +1406,7 @@ for e in E_products:
 # we conduct this only for final demand as for Z we link it to monetary flows (see below)
 
 findem_imp_sec_agg = pd.DataFrame(
-    index=sectors_D, columns=pd.MultiIndex.from_product([["H", "EX"], E_products])
+    index=sectors_D, columns=pd.MultiIndex.from_product([["H", "EX"], E_products]), dtype="float64"
 )
 for i in sectors_D:
     for e in E_products:
@@ -1435,7 +1435,7 @@ FD_Z_E_imp.loc["A"] = (
 ##### Use
 
 ```{python}
-industry_dom_net_E_demand = pd.DataFrame(index=sectors_D, columns=E_products)
+industry_dom_net_E_demand = pd.DataFrame(index=sectors_D, columns=E_products, dtype="float64")
 for i in sectors_D:
     for m in E_products:
         industry_dom_net_E_demand.loc[i, m] = (
@@ -1446,7 +1446,7 @@ for i in sectors_D:
 ##### Supply
 
 ```{python}
-industry_dom_net_E_supply = pd.DataFrame(index=sectors_D, columns=E_products)
+industry_dom_net_E_supply = pd.DataFrame(index=sectors_D, columns=E_products, dtype="float64")
 for i in sectors_D:
     for m in E_products:
         industry_dom_net_E_supply.loc[i, m] = (
@@ -1458,28 +1458,33 @@ for i in sectors_D:
 
 ```{python}
 # For Biogas, remove the one from A as not modelled
-industry_dom_net_E_supply.loc["A", "Biogas"] = 0
+# TODO: check this assumption for Finland.
+industry_dom_net_E_supply.loc["A", "Biogas"] = 0.0
 ```
 
 ##### non-RAS IO structure
 
 ```{python}
 Z_E_noown = {}
+# pot_RAS_E_products are energy products that are supplied and/or demanded by multiple sectors.
 pot_RAS_E_products = []
 for e in E_products:
-    Z_E_noown[e] = pd.DataFrame(0, index=sectors_D, columns=sectors_D)
-    if (industry_dom_net_E_demand[e] > 0).sum() == 1:
-        Z_E_noown[e].loc[
-            industry_dom_net_E_supply[e].loc[industry_dom_net_E_supply[e] > 0].index,
-            industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e] > 0].index,
-        ] = industry_dom_net_E_supply[e].loc[industry_dom_net_E_supply[e] > 0].values
-    elif (industry_dom_net_E_supply[e] > 0).sum() == 1:
-        Z_E_noown[e].loc[
-            industry_dom_net_E_supply[e].loc[industry_dom_net_E_supply[e] > 0].index,
-            industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e] > 0].index,
-        ] = industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e] > 0].values
-    elif all(industry_dom_net_E_supply[e] == 0):
-        Z_E_noown[e] = pd.DataFrame(0, index=sectors_D, columns=sectors_D)
+    Z_E_noown[e] = pd.DataFrame(0, index=sectors_D, columns=sectors_D, dtype="float64")
+    
+    industry_has_demand_for_product = industry_dom_net_E_demand[e] > 0
+    industry_has_supply_for_product = industry_dom_net_E_supply[e] > 0
+    product_is_not_domestically_supplied = all(industry_dom_net_E_supply[e] == 0)
+    number_of_demanding_industries = industry_has_demand_for_product.sum()
+    number_of_supplying_industries = industry_has_supply_for_product.sum()
+    demanding_industries = industry_dom_net_E_demand[e].loc[industry_has_demand_for_product].index
+    supplying_industries = industry_dom_net_E_supply[e].loc[industry_has_supply_for_product].index
+    if number_of_demanding_industries == 1:
+        Z_E_noown[e].loc[supplying_industries, demanding_industries] = industry_dom_net_E_supply[e].loc[supplying_industries]
+    elif number_of_supplying_industries == 1:
+        # Taking the values on the right side works when assigning to multiple columns
+        Z_E_noown[e].loc[supplying_industries, demanding_industries] = industry_dom_net_E_demand[e].loc[demanding_industries].values
+    elif product_is_not_domestically_supplied:
+        continue
     else:
         pot_RAS_E_products.append(e)
 ```
@@ -1490,18 +1495,21 @@ for e in E_products:
 # looking only at our energy sectors can also render RAS unnecessary as only one supplier
 RAS_E_products = []
 for e in pot_RAS_E_products:
-    if (industry_dom_net_E_supply[e][E_sectors] > 0).sum() == 1:
-        Z_E_noown[e].loc[
-            industry_dom_net_E_supply.loc[E_sectors, e][industry_dom_net_E_supply.loc[E_sectors, e] > 0].index,
-            industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e] > 0].index,
-        ] = (
-            industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e] > 0].values
-            * net_supply_shares.loc[E_sectors, e].sum()
+    e_industry_has_supply_for_product = industry_dom_net_E_supply[e][E_sectors] > 0
+    industry_has_demand_for_product = industry_dom_net_E_demand[e] > 0
+    supplying_e_industries = industry_dom_net_E_supply.loc[E_sectors, e][e_industry_has_supply_for_product].index
+    demanding_industries = industry_dom_net_E_demand[e].loc[industry_has_demand_for_product].index
+    number_of_supplying_e_industries = e_industry_has_supply_for_product.sum()
+
+    if number_of_supplying_e_industries == 1:
+        e_demand_by_industry = industry_dom_net_E_demand[e].loc[industry_has_demand_for_product].values
+        e_sectors_supply_share = net_supply_shares.loc[E_sectors, e].sum()
+        Z_E_noown[e].loc[supplying_e_industries, demanding_industries] = (
+            e_demand_by_industry * e_sectors_supply_share
         )
     else:
         RAS_E_products.append(e)
 ```
-
 ##### RAS IO structure
 
 ```{python}
@@ -1544,27 +1552,18 @@ M_Z_E_dom_RAS = M_Z_E_dom.copy()
 
 ```{python}
 for e in RAS_E_products:
-    relevant_Z = M_Z_E_dom_RAS.loc[
-        industry_dom_net_E_supply.loc[E_sectors, e]
-        .loc[industry_dom_net_E_supply.loc[E_sectors, e] > 0]
-        .index,
-        industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e] > 0].index,
-    ]
+    e_industries_supplying_product = industry_dom_net_E_supply.loc[E_sectors, e].loc[industry_dom_net_E_supply.loc[E_sectors, e] > 0].index
+    industries_demanding_product = industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e] > 0].index
+    relevant_Z = M_Z_E_dom_RAS.loc[e_industries_supplying_product, industries_demanding_product]
     # for supplying industries we can only have our energy sectors
     relevant_Z = relevant_Z.loc[relevant_Z.index.isin(E_sectors)]
-    rowsums = industry_dom_net_E_supply[e].loc[industry_dom_net_E_supply[e] > 0]
-    # again, for supplying industries we can only have our energy sectors
-    rowsums = rowsums[rowsums.index.isin(E_sectors)].values
-    colsums = industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e] > 0].values
+    rowsums = industry_dom_net_E_supply[e].loc[e_industries_supplying_product].values
+    colsums = industry_dom_net_E_demand[e].loc[industries_demanding_product].values
     # use has to be scaled by modelled supply share, again assuming the fixed product sale structure
     colsums = colsums * net_supply_shares.loc[relevant_Z.index, e].sum()
-    Z_E_noown[e].loc[
-        industry_dom_net_E_supply.loc[E_sectors, e].loc[industry_dom_net_E_supply.loc[E_sectors, e] > 0].index,
-        industry_dom_net_E_demand[e].loc[industry_dom_net_E_demand[e] > 0].index,
-    ] = RAS(relevant_Z, colsums=colsums, rowsums=rowsums)
+    Z_E_noown[e].loc[e_industries_supplying_product, industries_demanding_product] = RAS(relevant_Z, colsums=colsums, rowsums=rowsums)
 
 ```
-
 ##### Add industry own energy use
 
 ```{python}
