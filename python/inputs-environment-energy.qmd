@@ -1588,12 +1588,13 @@ x_dom = pd.read_excel(
 
 ```{python}
 x_dom_inv = 1 / x_dom
-x_dom_inv.fillna(value=0, inplace=True)
-x_dom_inv.replace([np.inf, -np.inf], 0, inplace=True)
+x_dom_inv.fillna(value=0.0, inplace=True)
+x_dom_inv.replace([np.inf, -np.inf], 0.0, inplace=True)
 x_dom_inv_diag = np.diag(x_dom_inv)
 ```
 
 ```{python}
+# Technical coefficient matrix
 A_E = {}
 for e in E_products:
     A_E[e] = Z_E[e] @ x_dom_inv_diag
@@ -1604,38 +1605,40 @@ for e in E_products:
 
 ```{python}
 Z_E_table = pd.DataFrame(
-    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=sectors_D
+    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=sectors_D, dtype="float64"
 )
 A_E_table = pd.DataFrame(
-    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=sectors_D
+    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=sectors_D, dtype="float64"
 )
 for e in E_products:
     Z_E_table.loc[e] = Z_E[e].values
     A_E_table.loc[e] = A_E[e].values
 
 # Totals
-Z_E_total = Z_E_table.groupby(level=1, axis=0, sort=False).sum()
-A_E_total = A_E_table.groupby(level=1, axis=0, sort=False).sum()
+Z_E_total = Z_E_table.groupby(level=1, sort=False).sum()
+A_E_total = A_E_table.groupby(level=1, sort=False).sum()
 
-# Agg E products
+# Aggregate E products to the final rough categorization
 Z_E_table_agg_E = pd.DataFrame(
     index=pd.MultiIndex.from_product([E_products_agg.keys(), sectors_D]),
     columns=sectors_D,
+    dtype="float64",
 )
 A_E_table_agg_E = pd.DataFrame(
     index=pd.MultiIndex.from_product([E_products_agg.keys(), sectors_D]),
     columns=sectors_D,
+    dtype="float64",
 )
 for e in E_products_agg.keys():
     Z_E_table_agg_E.loc[e] = (
         Z_E_table.loc[E_products_agg[e]]
-        .groupby(level=1, axis=0, sort=False)
+        .groupby(level=1, sort=False)
         .sum()
         .values
     )
     A_E_table_agg_E.loc[e] = (
         A_E_table.loc[E_products_agg[e]]
-        .groupby(level=1, axis=0, sort=False)
+        .groupby(level=1, sort=False)
         .sum()
         .values
     )
