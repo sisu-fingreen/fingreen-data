@@ -1488,7 +1488,6 @@ for e in E_products:
     else:
         pot_RAS_E_products.append(e)
 ```
-
 ##### Non-RAS E sectors
 
 ```{python}
@@ -1698,13 +1697,17 @@ with pd.ExcelWriter(
 #### Demand
 
 ```{python}
-# As we assumed so far, the import share is the same for each product, no matter where it is used, the same holds for import demand by sector. This is implicit in the previous assumptions of domestic Z demand and its distribution over sectors according to their respective total demand shares.
-# Thus import demand by sector can be calculated in a range of different ways: total Z demand - Z demand domestic; Total demand * supply import share; total import Z * industri total demand share
+# As we assumed so far, the import share is the same for each product, no matter where it is used, the same holds for import demand by sector.
+# This is implicit in the previous assumptions of domestic Z demand and its distribution over sectors according to their respective total demand shares.
+# Thus import demand by sector can be calculated in a range of different ways:
+# - total Z demand - Z demand domestic
+# - Total demand * supply import share
+# - total import Z supply * industry total demand (or use) share. The last one is used.
 ```
 
 ```{python}
 # Sectoral demand
-industry_E_imp_demand = pd.DataFrame(index=sectors_D, columns=E_products)
+industry_E_imp_demand = pd.DataFrame(index=sectors_D, columns=E_products, dtype="float64")
 for i in sectors_D:
     for m in E_products:
         industry_E_imp_demand.loc[i, m] = net_use_shares.loc[i, m] * imp_Z_supply[m]
@@ -1725,7 +1728,7 @@ for e in E_products:
     elif industry_E_imp_demand.sum()[e] == 0:
         imp_net_supply_shares[e] = 0
 
-industry_E_imp_supply = pd.DataFrame(index=sectors_D, columns=E_products)
+industry_E_imp_supply = pd.DataFrame(index=sectors_D, columns=E_products, dtype="float64")
 for e in E_products:
     industry_E_imp_supply[e] = imp_net_supply_shares[e] * imp_Z_supply[e]
 ```
@@ -1735,26 +1738,31 @@ for e in E_products:
 #### Non-RAS structure
 
 ```{python}
+# TODO: this really really should be a function and not a for loop
 Z_E_imp = {}
+# pot_RAS_E_products_imp are energy products that are supplied and/or demanded by multiple sectors.
 pot_RAS_E_products_imp = []
+
 for e in E_products:
-    Z_E_imp[e] = pd.DataFrame(0, index=sectors_D, columns=sectors_D)
-    if (industry_E_imp_demand[e] > 0).sum() == 1:
-        Z_E_imp[e].loc[
-            industry_E_imp_supply[e].loc[industry_E_imp_supply[e] > 0].index,
-            industry_E_imp_demand[e].loc[industry_E_imp_demand[e] > 0].index,
-        ] = industry_E_imp_supply[e].loc[industry_E_imp_supply[e] > 0].values
-    elif (industry_E_imp_supply[e] > 0).sum() == 1:
-        Z_E_imp[e].loc[
-            industry_E_imp_supply[e].loc[industry_E_imp_supply[e] > 0].index,
-            industry_E_imp_demand[e].loc[industry_E_imp_demand[e] > 0].index,
-        ] = industry_E_imp_demand[e].loc[industry_E_imp_demand[e] > 0].values
-    elif all(industry_E_imp_supply[e] < 1e-10):
-        Z_E_imp[e] = pd.DataFrame(0, index=sectors_D, columns=sectors_D)
+    Z_E_imp[e] = pd.DataFrame(0, index=sectors_D, columns=sectors_D, dtype="float64")
+    
+    industry_has_imp_demand_for_product = industry_E_imp_demand[e] > 0
+    industry_has_imp_supply_for_product = industry_E_imp_supply[e] > 0
+    product_is_not_imported = all(industry_E_imp_supply[e] < 1e-10)
+    number_of_imp_demanding_industries = industry_has_imp_demand_for_product.sum()
+    number_of_imp_supplying_industries = industry_has_imp_supply_for_product.sum()
+    imp_demanding_industries = industry_E_imp_demand[e].loc[industry_has_imp_demand_for_product].index
+    imp_supplying_industries = industry_E_imp_supply[e].loc[industry_has_imp_supply_for_product].index
+    if number_of_imp_demanding_industries == 1:
+        Z_E_imp[e].loc[imp_supplying_industries, imp_demanding_industries] = industry_E_imp_supply[e].loc[imp_supplying_industries]
+    elif number_of_imp_supplying_industries == 1:
+        # Taking the values on the right side works when assigning to multiple columns
+        Z_E_imp[e].loc[imp_supplying_industries, imp_demanding_industries] = industry_E_imp_demand[e].loc[imp_demanding_industries].values
+    elif product_is_not_imported:
+        continue
     else:
         pot_RAS_E_products_imp.append(e)
 ```
-
 #### Non-RAS E sectors
 
 ```{python}
