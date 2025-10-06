@@ -1823,39 +1823,34 @@ for e in E_products:
 ### Tables and Aggregation
 
 ```{python}
-Z_E_imp_table = pd.DataFrame(
-    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=sectors_D
-)
-A_E_imp_table = pd.DataFrame(
-    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=sectors_D
-)
-for e in E_products:
-    Z_E_imp_table.loc[e] = Z_E_imp[e].values
-    A_E_imp_table.loc[e] = A_E_imp[e].values
+Z_E_imp_table = pd.concat(Z_E_imp.values(), keys=Z_E_imp.keys())
+A_E_imp_table = pd.concat(A_E_imp.values(), keys=A_E_imp.keys())
 
 # Totals
-Z_E_imp_total = Z_E_imp_table.groupby(level=1, axis=0, sort=False).sum()
-A_E_imp_total = A_E_imp_table.groupby(level=1, axis=0, sort=False).sum()
+Z_E_imp_total = Z_E_imp_table.groupby(level=1, sort=False).sum()
+A_E_imp_total = A_E_imp_table.groupby(level=1, sort=False).sum()
 
 # Agg E products
 Z_E_imp_table_agg_E = pd.DataFrame(
     index=pd.MultiIndex.from_product([E_products_agg.keys(), sectors_D]),
     columns=sectors_D,
+    dtype="float64",
 )
 A_E_imp_table_agg_E = pd.DataFrame(
     index=pd.MultiIndex.from_product([E_products_agg.keys(), sectors_D]),
     columns=sectors_D,
+    dtype="float64",
 )
 for e in E_products_agg.keys():
     Z_E_imp_table_agg_E.loc[e] = (
         Z_E_imp_table.loc[E_products_agg[e]]
-        .groupby(level=1, axis=0, sort=False)
+        .groupby(level=1, sort=False)
         .sum()
         .values
     )
     A_E_imp_table_agg_E.loc[e] = (
         A_E_imp_table.loc[E_products_agg[e]]
-        .groupby(level=1, axis=0, sort=False)
+        .groupby(level=1, sort=False)
         .sum()
         .values
     )
@@ -1864,7 +1859,7 @@ for e in E_products_agg.keys():
 ```{python}
 # Cell specific source structure
 source_str_imp = pd.DataFrame(
-    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=sectors_D
+    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=sectors_D, dtype="float64"
 )
 for i in sectors_D:
     for j in sectors_D:
