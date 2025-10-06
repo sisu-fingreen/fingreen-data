@@ -1767,16 +1767,19 @@ for e in E_products:
 
 ```{python}
 # looking only at our energy sectors can also render RAS unnecessary as only one supplier
-
 RAS_E_products_imp = []
 for e in pot_RAS_E_products_imp:
-    if (industry_E_imp_supply[e][E_sectors] > 0).sum() == 1:
-        Z_E_imp[e].loc[
-            industry_E_imp_supply.loc[E_sectors, e][industry_E_imp_supply.loc[E_sectors, e] > 0].index,
-            industry_E_imp_demand[e].loc[industry_E_imp_demand[e] > 0].index,
-        ] = (
-            industry_E_imp_demand[e].loc[industry_E_imp_demand[e] > 0].values
-            * imp_net_supply_shares.loc[E_sectors, e].sum()
+    e_industry_has_imp_supply_for_product = industry_E_imp_supply[e][E_sectors] > 0
+    industry_has_imp_demand_for_product = industry_E_imp_demand[e] > 0
+    e_imp_demand_by_industry = industry_E_imp_demand[e].loc[industry_has_imp_demand_for_product]
+    imp_supplying_e_industries = industry_E_imp_supply.loc[E_sectors, e][e_industry_has_imp_supply_for_product].index
+    imp_demanding_industries = e_imp_demand_by_industry.index
+    number_of_imp_supplying_e_industries = e_industry_has_imp_supply_for_product.sum()
+
+    if number_of_imp_supplying_e_industries == 1:
+        e_sectors_imp_supply_share = imp_net_supply_shares.loc[E_sectors, e].sum()
+        Z_E_imp[e].loc[imp_supplying_e_industries, imp_demanding_industries] = (
+            e_imp_demand_by_industry.values * e_sectors_imp_supply_share
         )
     else:
         RAS_E_products_imp.append(e)
@@ -1786,27 +1789,30 @@ for e in pot_RAS_E_products_imp:
 
 ```{python}
 for e in RAS_E_products_imp:
-    relevant_Z = Z_imp.loc[
-        industry_E_imp_supply.loc[E_sectors, e][industry_E_imp_supply.loc[E_sectors, e] > 0].index,
-        industry_E_imp_demand[e].loc[industry_E_imp_demand[e] > 0].index,
-    ]
-    # for supplying industries we can only have our energy sectors
-    relevant_Z = relevant_Z.loc[relevant_Z.index.isin(E_sectors)]
-    rowsums = industry_E_imp_supply[e].loc[industry_E_imp_supply[e] > 0]
-    # again, for supplying industries we can only have our energy sectors
-    rowsums = rowsums[rowsums.index.isin(E_sectors)].values
-    colsums = industry_E_imp_demand[e].loc[industry_E_imp_demand[e] > 0].values
+    e_industries_imp_supplying_product = (
+        industry_E_imp_supply
+        .loc[E_sectors]
+        .query(f"`{e}` > 0") # Backticks cause column names have spaces
+        .index
+    )
+    industries_imp_demanding_product = (
+        industry_E_imp_demand
+        .query(f"`{e}` > 0")
+        .index
+    )
+    relevant_Z = (
+        Z_imp
+        .loc[e_industries_imp_supplying_product, industries_imp_demanding_product]
+        # for supplying industries we can only have our energy sectors
+        .query("index in @E_sectors")
+    )
+    rowsums = industry_E_imp_supply[e].loc[e_industries_imp_supplying_product].values
+    colsums = industry_E_imp_demand[e].loc[industries_imp_demanding_product].values
     # use has to be scaled by modelled supply share, again assuming the fixed product sale structure
     colsums = colsums * imp_net_supply_shares.loc[relevant_Z.index, e].sum()
-    Z_E_imp[e].loc[
-        industry_E_imp_supply.loc[E_sectors, e][
-            industry_E_imp_supply.loc[E_sectors, e] > 0
-        ].index,
-        industry_E_imp_demand[e].loc[industry_E_imp_demand[e] > 0].index,
-    ] = RAS(relevant_Z, colsums=colsums, rowsums=rowsums)
-    # print(e)
-```
+    Z_E_imp[e].loc[e_industries_imp_supplying_product, industries_imp_demanding_product] = RAS(relevant_Z, colsums=colsums, rowsums=rowsums)
 
+```
 ```{python}
 A_E_imp = {}
 for e in E_products:
