@@ -1677,7 +1677,7 @@ for e in E_products_agg.keys():
 
 ```{python}
 with pd.ExcelWriter(
-    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS_clear_check.xlsx",
+    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS.xlsx",
     engine="openpyxl",
     mode="w",
 ) as writer:
@@ -1875,11 +1875,12 @@ for i in sectors_D:
 source_str_imp_agg_E = pd.DataFrame(
     index=pd.MultiIndex.from_product([E_products_agg.keys(), sectors_D]),
     columns=sectors_D,
+    dtype="float64",
 )
 for e in E_products_agg.keys():
     source_str_imp_agg_E.loc[e] = (
         source_str_imp.loc[E_products_agg[e]]
-        .groupby(level=1, axis=0, sort=False)
+        .groupby(level=1, sort=False)
         .sum()
         .values
     )
@@ -1889,10 +1890,9 @@ for e in E_products_agg.keys():
 
 ```{python}
 with pd.ExcelWriter(
-    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS_jan2025.xlsx",
+    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS.xlsx",
     engine="openpyxl",
     mode="a",
-    if_sheet_exists="replace",
 ) as writer:
     Z_E_imp_table.to_excel(writer, sheet_name="Z E imp")
     A_E_imp_table.to_excel(writer, sheet_name="A E imp")
@@ -2051,7 +2051,7 @@ for j in ["H", "EX"]:
 
 ```{python}
 with pd.ExcelWriter(
-    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS_jan2025.xlsx",
+    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS.xlsx",
     engine="openpyxl",
     mode="a",
     if_sheet_exists="replace",
@@ -2142,7 +2142,7 @@ FD_Z_E_imp_share = FD_Z_E_imp / findem_imp["H"]
 
 ```{python}
 with pd.ExcelWriter(
-    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS_jan2025.xlsx",
+    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS.xlsx",
     engine="openpyxl",
     mode="a",
     if_sheet_exists="replace",
@@ -2180,7 +2180,7 @@ for i in sectors_D:
 
 ```{python}
 with pd.ExcelWriter(
-    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS_jan2025.xlsx",
+    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS.xlsx",
     engine="openpyxl",
     mode="a",
     if_sheet_exists="replace",
@@ -2677,7 +2677,7 @@ f_use_share_hh_E_agg.fillna(value=0, inplace=True)
 ```{python}
 # Export
 with pd.ExcelWriter(
-    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS_jan2025.xlsx",
+    "source-data/pisa-team-files/PEFA_IO_MEZ_RAS.xlsx",
     engine="openpyxl",
     mode="a",
     if_sheet_exists="replace",
