@@ -2063,16 +2063,11 @@ with pd.ExcelWriter(
     findem_sec_agg.to_excel(writer, sheet_name="findem dom")
     findem_sec_agg_total.to_excel(writer, sheet_name="findem dom tot")
     findem_sec_agg_E_agg.to_excel(writer, sheet_name="findem dom E agg")
-    #    source_str_findem.to_excel(writer, sheet_name='findem source share dom')
-    #    source_str_findem_agg_E.to_excel(writer, sheet_name='findem source share dom agg E')
     # imports
     findem_imp_sec_agg.to_excel(writer, sheet_name="findem imp")
     findem_imp_sec_agg_total.to_excel(writer, sheet_name="findem imp tot")
     findem_imp_sec_agg_E_agg.to_excel(writer, sheet_name="findem imp E agg")
     source_str_findem_imp.to_excel(writer, sheet_name="findem source share imp")
-    source_str_findem_imp_agg_E.to_excel(
-        writer, sheet_name="findem source share imp agg E"
-    )
     # reorganised FD for Vensim
     source_str_findem_agg_E_reorg.to_excel(
         writer, sheet_name="findem source share dom agg E"
@@ -2085,58 +2080,51 @@ with pd.ExcelWriter(
 ## Implicit price
 
 ```{python}
-## Domestix
-# Z
-p_Z_dom = M_Z_E_dom / Z_E_total
-p_Z_dom.fillna(value=0, inplace=True)
-p_Z_dom.replace([np.inf, -np.inf], 0, inplace=True)
-# FD
-p_FD_dom = FD_Z_E_dom / findem_sec_agg_total
-p_FD_dom.fillna(value=0, inplace=True)
-p_FD_dom.replace([np.inf, -np.inf], 0, inplace=True)
+def calculate_implicit_price(monetary_energy_flows, energy_flows):
+    res = (
+        (monetary_energy_flows / energy_flows)
+        .fillna(value=0.0)
+        .replace([np.inf, -np.inf], 0.0)
+    )
+    return res
+
+## Domestic
+p_Z_dom = calculate_implicit_price(M_Z_E_dom, Z_E_total)
+p_FD_dom = calculate_implicit_price(FD_Z_E_dom, findem_sec_agg_total)
 
 ## Imports
-# Z
-p_Z_imp = M_Z_E_imp / Z_E_imp_total
-p_Z_imp.fillna(value=0, inplace=True)
-p_Z_imp.replace([np.inf, -np.inf], 0, inplace=True)
-# FD
-p_FD_imp = FD_Z_E_imp / findem_imp_sec_agg_total["H"]
-p_FD_imp.fillna(value=0, inplace=True)
-p_FD_imp.replace([np.inf, -np.inf], 0, inplace=True)
+p_Z_imp = calculate_implicit_price(M_Z_E_imp, Z_E_imp_total)
+p_FD_imp = calculate_implicit_price(FD_Z_E_imp, findem_imp_sec_agg_total["H"])
 ```
 
 ```{python}
 # Intensity per EURO
-mio = 1e6
+
 # https://www.rug.nl/ggdc/valuechain/wiod/wiod-2016-release
-euro_dollar = 1.3257
+# TODO: set this dynamically
+euro_dollar_exchange_rate = 1.3257
+def calculate_intensity_per_euro(energy_flows, monetary_energy_flows):
+    res = (
+        (energy_flows / (monetary_energy_flows * 1e6 / euro_dollar_exchange_rate))
+        .fillna(value=0.0)
+        .replace([np.inf, -np.inf], 0.0)
+    )
+    return res
+
 
 ## Domestix
-# Z
-int_Z_dom = Z_E_total / (M_Z_E_dom * mio / euro_dollar)
-int_Z_dom.fillna(value=0, inplace=True)
-int_Z_dom.replace([np.inf, -np.inf], 0, inplace=True)
-# FD
-int_FD_dom = findem_sec_agg_total / (FD_Z_E_dom * mio / euro_dollar)
-int_FD_dom.fillna(value=0, inplace=True)
-int_FD_dom.replace([np.inf, -np.inf], 0, inplace=True)
+int_Z_dom = calculate_intensity_per_euro(Z_E_total, M_Z_E_dom)
+int_FD_dom = calculate_intensity_per_euro(findem_sec_agg_total, FD_Z_E_dom)
 
 ## Imports
-# Z
-int_Z_imp = Z_E_imp_total / (M_Z_E_imp * mio / euro_dollar)
-int_Z_imp.fillna(value=0, inplace=True)
-int_Z_imp.replace([np.inf, -np.inf], 0, inplace=True)
-# FD
-int_FD_imp = findem_imp_sec_agg_total["H"] / (FD_Z_E_imp * mio / euro_dollar)
-int_FD_imp.fillna(value=0, inplace=True)
-int_FD_imp.replace([np.inf, -np.inf], 0, inplace=True)
+int_Z_imp = calculate_intensity_per_euro(Z_E_imp_total, M_Z_E_imp)
+int_FD_imp = calculate_intensity_per_euro(findem_imp_sec_agg_total["H"], FD_Z_E_imp)
 ```
 
 ```{python}
 M_Z_E_dom_share = M_Z_E_dom / Z_dom
 M_Z_E_dom_share.fillna(value=0, inplace=True)
-FD_Z_E_dom_share = pd.DataFrame(index=sectors_D, columns=["H", "EX"])
+FD_Z_E_dom_share = pd.DataFrame(index=sectors_D, columns=["H", "EX"], dtype="float64")
 FD_Z_E_dom_share["H"] = FD_Z_E_dom["H"] / findem_dom["H"]
 FD_Z_E_dom_share["EX"] = FD_Z_E_dom["EX"] / findem_exp
 M_Z_E_imp_share = M_Z_E_imp / Z_imp
@@ -2155,11 +2143,6 @@ with pd.ExcelWriter(
     int_FD_dom.to_excel(writer, sheet_name="int FD dom")
     int_Z_imp.to_excel(writer, sheet_name="int Z imp")
     int_FD_imp.to_excel(writer, sheet_name="int FD imp")
-    # Shares
-    M_Z_E_dom_share.to_excel(writer, sheet_name="E M share Z dom")
-    M_Z_E_imp_share.to_excel(writer, sheet_name="E M share Z imp")
-    FD_Z_E_dom_share.to_excel(writer, sheet_name="E M share FD dom")
-    FD_Z_E_imp_share.to_excel(writer, sheet_name="E M share FD imp")
 ```
 
 ##### Discrepancies
