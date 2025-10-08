@@ -1916,7 +1916,7 @@ with pd.ExcelWriter(
 
 ```{python}
 findem_sec_agg = pd.DataFrame(
-    index=sectors_D, columns=pd.MultiIndex.from_product([["H", "EX"], E_products])
+    index=sectors_D, columns=pd.MultiIndex.from_product([["H", "EX"], E_products]), dtype="float64"
 )
 for i in sectors_D:
     for e in E_products:
@@ -1930,7 +1930,7 @@ for i in sectors_D:
 
 ```{python}
 findem_imp_sec_agg = pd.DataFrame(
-    index=sectors_D, columns=pd.MultiIndex.from_product([["H", "EX"], E_products])
+    index=sectors_D, columns=pd.MultiIndex.from_product([["H", "EX"], E_products]), dtype="float64"
 )
 for i in sectors_D:
     for e in E_products:
@@ -1939,38 +1939,45 @@ for i in sectors_D:
         )
         findem_imp_sec_agg.loc[i, ("EX", e)] = (
             imp_exp_findem[e] * imp_net_supply_shares.loc[i, e]
+        )
 ```
 
 ### Aggregation
 
 ```{python}
 # Totals
-findem_sec_agg_total = findem_sec_agg.groupby(level=0, axis=1, sort=False).sum()
-findem_imp_sec_agg_total = findem_imp_sec_agg.groupby(level=0, axis=1, sort=False).sum()
+findem_sec_agg_total = findem_sec_agg.T.groupby(level=0, sort=False).sum().T
+findem_imp_sec_agg_total = findem_imp_sec_agg.T.groupby(level=0, sort=False).sum().T
 
 # Agg E products
 findem_sec_agg_E_agg = pd.DataFrame(
     index=sectors_D,
     columns=pd.MultiIndex.from_product([["H", "EX"], E_products_agg.keys()]),
+    dtype="float64",
 )
 findem_imp_sec_agg_E_agg = pd.DataFrame(
     index=sectors_D,
     columns=pd.MultiIndex.from_product([["H", "EX"], E_products_agg.keys()]),
+    dtype="float64",
 )
 for i in sectors_D:
     for h in ["H", "EX"]:
         for e in E_products_agg.keys():
-            findem_sec_agg_E_agg.loc[i, (h, e)] = findem_sec_agg.loc[
-                i, (h, E_products_agg[e])
-            ].sum()
-            findem_imp_sec_agg_E_agg.loc[i, (h, e)] = findem_imp_sec_agg.loc[
-                i, (h, E_products_agg[e])
-            ].sum()
+            findem_sec_agg_E_agg.loc[i, (h, e)] = (
+                findem_sec_agg
+                .loc[i, (h, E_products_agg[e])]
+                .sum()
+            )
+            findem_imp_sec_agg_E_agg.loc[i, (h, e)] = (
+                findem_imp_sec_agg
+                .loc[i, (h, E_products_agg[e])]
+                .sum()
+            )
 
 
 # Cell specific source structure
 source_str_findem = pd.DataFrame(
-    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=["H", "EX"]
+    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=["H", "EX"], dtype="float64"
 )
 for i in sectors_D:
     for j in ["H", "EX"]:
@@ -1984,7 +1991,7 @@ for i in sectors_D:
 #
 # imports
 source_str_findem_imp = pd.DataFrame(
-    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=["H", "EX"]
+    index=pd.MultiIndex.from_product([E_products, sectors_D]), columns=["H", "EX"], dtype="float64"
 )
 for i in sectors_D:
     for j in ["H", "EX"]:
@@ -2002,21 +2009,23 @@ for i in sectors_D:
 source_str_findem_agg_E = pd.DataFrame(
     index=pd.MultiIndex.from_product([E_products_agg.keys(), sectors_D]),
     columns=["H", "EX"],
+    dtype="float64",
 )
 source_str_findem_imp_agg_E = pd.DataFrame(
     index=pd.MultiIndex.from_product([E_products_agg.keys(), sectors_D]),
     columns=["H", "EX"],
+    dtype="float64",
 )
 for e in E_products_agg.keys():
     source_str_findem_agg_E.loc[e] = (
         source_str_findem.loc[E_products_agg[e]]
-        .groupby(level=1, axis=0, sort=False)
+        .groupby(level=1, sort=False)
         .sum()
         .values
     )
     source_str_findem_imp_agg_E.loc[e] = (
         source_str_findem_imp.loc[E_products_agg[e]]
-        .groupby(level=1, axis=0, sort=False)
+        .groupby(level=1, sort=False)
         .sum()
         .values
     )
@@ -2024,27 +2033,22 @@ for e in E_products_agg.keys():
 
 ```{python}
 # Reorganise for Vensim use
-source_str_findem_agg_E_reorg = pd.DataFrame(
-    index=pd.MultiIndex.from_product([["H", "EX"], sectors_D]),
-    columns=E_products_agg.keys(),
-)
-for j in ["H", "EX"]:
-    for i in sectors_D:
-        for e in E_products_agg.keys():
-            source_str_findem_agg_E_reorg.loc[(j, i), e] = source_str_findem_agg_E.loc[
-                (e, i), j
-            ]
+def reorganize_source_str_findem_table(df):
+    res = (
+        df
+        .melt(ignore_index=False) # change to long format
+        .reset_index()
+        .pivot(columns="level_0", index=["variable", "level_1"], values="value")
+        # reindex to ensure order of the rows and columns
+        .reindex(
+            index=pd.MultiIndex.from_product([["H", "EX"], sectors_D]),
+            columns=E_products_agg.keys()
+        )
+    )
+    return res
 
-source_str_findem_imp_agg_E_reorg = pd.DataFrame(
-    index=pd.MultiIndex.from_product([["H", "EX"], sectors_D]),
-    columns=E_products_agg.keys(),
-)
-for j in ["H", "EX"]:
-    for i in sectors_D:
-        for e in E_products_agg.keys():
-            source_str_findem_imp_agg_E_reorg.loc[(j, i), e] = (
-                source_str_findem_imp_agg_E.loc[(e, i), j]
-            )
+source_str_findem_agg_E_reorg = reorganize_source_str_findem_table(source_str_findem_agg_E)
+source_str_findem_imp_agg_E_reorg = reorganize_source_str_findem_table(source_str_findem_imp_agg_E)
 ```
 
 ### Export
