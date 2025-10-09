@@ -2181,234 +2181,13 @@ with pd.ExcelWriter(
 
 # Types of use
 
-### Re import PEFA and definitions
+### Re-aggregate use table with pefa E_products
 
 ```{python}
-supply = pd.read_excel(
-    f"source-data/pisa-team-files/PEFA_{country_code2}_{year}.xlsx",
-    header=[10],
-    index_col=[0],
-    sheet_name="Sheet 1",
-    nrows=39,
-)
-use = pd.read_excel(
-    f"source-data/pisa-team-files/PEFA_{country_code2}_{year}.xlsx",
-    header=[10],
-    index_col=[0],
-    sheet_name="Sheet 2",
-    nrows=39,
-)
-
-E_products = [
-    "Hard coal",
-    "Brown coal and peat",
-    "Derived gases (= manufactured gases excl. biogas)",
-    "Secondary coal products (coke, coal tar, patent fuel, BKB and peat products)",
-    "Crude oil, NGL, and other hydrocarbons (excl. bio)",
-    "Natural gas (without bio)",
-    "Motor spirit (without bio)",
-    "Kerosenes and jet fuels (without bio)",
-    "Naphtha",
-    "Transport diesel (without bio)",
-    "Heating and other gasoil (without bio)",
-    "Residual fuel oil",
-    "Refinery gas, ethane and LPG",
-    "Other petroleum products incl. additives/oxygenates and refinery feedstocks",
-    "Nuclear fuel",
-    "Wood, wood waste and other solid biomass, charcoal",
-    "Liquid biofuels",
-    "Biogas",
-    "Electrical energy",
-    "Heat",
-]
-
-A = [
-    "Crop and animal production, hunting and related service activities",
-    "Forestry and logging",
-    "Fishing and aquaculture",
-]
-B = ["Mining and quarrying"]
-C = [
-    "Manufacture of food products; beverages and tobacco products",
-    "Manufacture of textiles, wearing apparel, leather and related products",
-    "Manufacture of wood and of products of wood and cork, except furniture; manufacture of articles of straw and plaiting materials",
-    "Manufacture of paper and paper products",
-    "Printing and reproduction of recorded media",
-    "Manufacture of chemicals and chemical products",
-    "Manufacture of basic pharmaceutical products and pharmaceutical preparations",
-    "Manufacture of rubber and plastic products",
-    "Manufacture of other non-metallic mineral products",
-    "Manufacture of basic metals",
-    "Manufacture of fabricated metal products, except machinery and equipment",
-    "Manufacture of computer, electronic and optical products",
-    "Manufacture of electrical equipment",
-    "Manufacture of machinery and equipment n.e.c.",
-    "Manufacture of furniture; other manufacturing",
-    "Repair and installation of machinery and equipment",
-]
-C19 = ["Manufacture of coke and refined petroleum products"]
-C29 = [
-    "Manufacture of motor vehicles, trailers and semi-trailers",
-    "Manufacture of other transport equipment",
-]
-D = ["Electricity, gas, steam and air conditioning supply"]
-E = [
-    "Water collection, treatment and supply",
-    "Sewerage, waste management, remediation activities",
-]
-F = ["Construction"]
-G = [
-    "Wholesale and retail trade and repair of motor vehicles and motorcycles",
-    "Wholesale trade, except of motor vehicles and motorcycles",
-    "Retail trade, except of motor vehicles and motorcycles",
-]
-H = ["Land transport and transport via pipelines", "Water transport", "Air transport"]
-H_M_N = [
-    "Warehousing and support activities for transportation",
-    "Postal and courier activities",
-    "Legal and accounting activities; activities of head offices; management consultancy activities",
-    "Architectural and engineering activities; technical testing and analysis",
-    "Scientific research and development",
-    "Advertising and market research",
-    "Other professional, scientific and technical activities; veterinary activities",
-    "Rental and leasing activities",
-    "Employment activities",
-    "Travel agency, tour operator and other reservation service and related activities",
-    "Security and investigation, service and landscape, office administrative and support activities",
-]
-I = ["Accommodation and food service activities"]
-J_R_S = [
-    "Publishing activities",
-    "Motion picture, video, television programme production; programming and broadcasting activities",
-    "Telecommunications",
-    "Computer programming, consultancy, and information service activities",
-    "Creative, arts and entertainment activities; libraries, archives, museums and other cultural activities; gambling and betting activities",
-    "Sports activities and amusement and recreation activities",
-    "Activities of membership organisations",
-    "Repair of computers and personal and household goods",
-    "Other personal service activities",
-]
-K = [
-    "Financial service activities, except insurance and pension funding",
-    "Insurance, reinsurance and pension funding, except compulsory social security",
-    "Activities auxiliary to financial services and insurance activities",
-]
-L = ["Real estate activities"]
-O = ["Public administration and defence; compulsory social security"]
-P = ["Education"]
-Q = [
-    "Human health activities",
-    "Residential care activities and social work activities without accommodation",
-]
-T_U = [
-    "Activities of households as employers; undifferentiated goods- and services-producing activities of households for own use"
-]
-agg_ind = {
-    "A": A,
-    "B": B,
-    "C": C,
-    "C19": C19,
-    "C29": C29,
-    "D": D,
-    "E": E,
-    "F": F,
-    "G": G,
-    "H": H,
-    "H_M_N": H_M_N,
-    "I": I,
-    "J_R_S": J_R_S,
-    "K": K,
-    "L": L,
-    "O": O,
-    "P": P,
-    "Q": Q,
-    "T": T_U,
-}
-
-E_sectors = ["A", "B", "C19", "D"]
-E_sectors_nonbio = [x for x in E_sectors if x not in ["A"]]
-
-# Energy Products
-
-E_products = [
-    "Hard coal",
-    "Brown coal and peat",
-    "Derived gases (= manufactured gases excl. biogas)",
-    "Secondary coal products (coke, coal tar, patent fuel, BKB and peat products)",
-    "Crude oil, NGL, and other hydrocarbons (excl. bio)",
-    "Natural gas (without bio)",
-    "Motor spirit (without bio)",
-    "Kerosenes and jet fuels (without bio)",
-    "Naphtha",
-    "Transport diesel (without bio)",
-    "Heating and other gasoil (without bio)",
-    "Residual fuel oil",
-    "Refinery gas, ethane and LPG",
-    "Other petroleum products incl. additives/oxygenates and refinery feedstocks",
-    "Nuclear fuel",
-    "Wood, wood waste and other solid biomass, charcoal",
-    "Liquid biofuels",
-    "Biogas",
-    "Electrical energy",
-    "Heat",
-]
-
-E_prod_coal = [
-    "Hard coal",
-    "Brown coal and peat",
-    "Secondary coal products (coke, coal tar, patent fuel, BKB and peat products)",
-    "Derived gases (= manufactured gases excl. biogas)",
-]
-E_prod_gas_natural = ["Natural gas (without bio)"]
-E_prod_oil = [
-    "Crude oil, NGL, and other hydrocarbons (excl. bio)",
-    "Motor spirit (without bio)",
-    "Kerosenes and jet fuels (without bio)",
-    "Naphtha",
-    "Transport diesel (without bio)",
-    "Heating and other gasoil (without bio)",
-    "Residual fuel oil",
-    "Refinery gas, ethane and LPG",
-    "Other petroleum products incl. additives/oxygenates and refinery feedstocks",
-]
-E_prod_nuc = ["Nuclear fuel"]
-E_prod_biofuels = [
-    "Wood, wood waste and other solid biomass, charcoal",
-    "Liquid biofuels",
-    "Biogas",
-]
-E_prod_elec = ["Electrical energy"]
-E_prod_heat = ["Heat"]
-
-E_products_agg = {
-    "Coal and coal products": E_prod_coal,
-    "Natural gas": E_prod_gas_natural,
-    "Oil and petroleum products": E_prod_oil,
-    "Nuclear fuel": E_prod_nuc,
-    "Biofuels": E_prod_biofuels,
-    "Electricity": E_prod_elec,
-    "Heat": E_prod_heat,
-}
-
-E_agg = list(E_products_agg)
-
-
-supply.dropna(axis=0, how="all", inplace=True)
-supply.dropna(axis=1, how="any", inplace=True)
-supply.drop(labels=["Unnamed: 136"], axis=1, inplace=True)
-
-use.dropna(axis=0, how="all", inplace=True)
-use.dropna(axis=1, how="any", inplace=True)
-
-supply_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products)
-for m in E_products:
+use_sec_agg_pefa = pd.DataFrame(index=agg_ind.keys(), columns=E_products_PEFA)
+for m in E_products_PEFA:
     for i in agg_ind.keys():
-        supply_sec_agg.loc[i, m] = supply.loc[m, agg_ind[i]].sum()
-
-use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products)
-for m in E_products:
-    for i in agg_ind.keys():
-        use_sec_agg.loc[i, m] = use.loc[m, agg_ind[i]].sum()
+        use_sec_agg_pefa.loc[i, m] = use.loc[m, agg_ind[i]].sum()
 
 ```
 
@@ -2457,39 +2236,39 @@ e_use.loc[["Electrical energy", "Heat"]] = 0
 ```
 
 ```{python}
-t_use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products)
-for m in E_products:
+t_use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products_PEFA)
+for m in E_products_PEFA:
     for i in agg_ind.keys():
         t_use_sec_agg.loc[i, m] = t_use.loc[m, agg_ind[i]].sum()
 
-f_use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products)
-for m in E_products:
+f_use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products_PEFA)
+for m in E_products_PEFA:
     for i in agg_ind.keys():
         f_use_sec_agg.loc[i, m] = f_use.loc[m, agg_ind[i]].sum()
 
-e_use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products)
-for m in E_products:
+e_use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products_PEFA)
+for m in E_products_PEFA:
     for i in agg_ind.keys():
         e_use_sec_agg.loc[i, m] = e_use.loc[m, agg_ind[i]].sum()
 
 ```
 
 ```{python}
-f_use_share = f_use_sec_agg.div(use_sec_agg.where(use_sec_agg != 0, np.nan))
+f_use_share = f_use_sec_agg.div(use_sec_agg_pefa.where(use_sec_agg_pefa != 0, np.nan))
 f_use_share.fillna(value=0, inplace=True)
 ```
 
 ```{python}
-e_use_share = e_use_sec_agg.div(use_sec_agg.where(use_sec_agg != 0, np.nan))
+e_use_share = e_use_sec_agg.div(use_sec_agg_pefa.where(use_sec_agg_pefa != 0, np.nan))
 e_use_share.fillna(value=0, inplace=True)
 ```
 
 #### Findem
 
 ```{python}
-use_hh = use.loc[E_products, "Total activities by households"].squeeze()
-f_use_hh = f_use.loc[E_products, "Total activities by households"].squeeze()
-e_use_hh = e_use.loc[E_products, "Total activities by households"].squeeze()
+use_hh = use.loc[E_products_PEFA, "Total activities by households"].squeeze()
+f_use_hh = f_use.loc[E_products_PEFA, "Total activities by households"].squeeze()
+e_use_hh = e_use.loc[E_products_PEFA, "Total activities by households"].squeeze()
 ```
 
 ```{python}
@@ -2510,7 +2289,7 @@ D_sectors = ["D1", "D2", "D3"]
 ```
 
 ```{python}
-f_use_share_D = pd.DataFrame(index=D_sectors, columns=E_products)
+f_use_share_D = pd.DataFrame(index=D_sectors, columns=E_products_PEFA)
 for i in D_sectors:
     f_use_share_D.loc[i] = f_use_share.loc["D"]
 
@@ -2526,7 +2305,7 @@ f_use_share = f_use_share.reindex(sectors_D)
 ```
 
 ```{python}
-e_use_share_D = pd.DataFrame(index=D_sectors, columns=E_products)
+e_use_share_D = pd.DataFrame(index=D_sectors, columns=E_products_PEFA)
 for i in D_sectors:
     e_use_share_D.loc[i] = e_use_share.loc["D"]
 
