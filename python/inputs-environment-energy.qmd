@@ -2184,7 +2184,7 @@ with pd.ExcelWriter(
 ### Re-aggregate use table with pefa E_products
 
 ```{python}
-use_sec_agg_pefa = pd.DataFrame(index=agg_ind.keys(), columns=E_products_PEFA)
+use_sec_agg_pefa = pd.DataFrame(index=agg_ind.keys(), columns=E_products_PEFA, dtype="float64")
 for m in E_products_PEFA:
     for i in agg_ind.keys():
         use_sec_agg_pefa.loc[i, m] = use.loc[m, agg_ind[i]].sum()
@@ -2198,55 +2198,51 @@ t_use = pd.read_excel(
     f"source-data/pisa-team-files/PEFA_{country_code2}_{year}_use.xlsx",
     header=[10],
     index_col=[0],
-    sheet_name="Sheet 2",
+    sheet_name="transformation-use",
     nrows=39,
+    dtype=coltype_dict,
+    na_values=[":","m"]
 )
 f_use = pd.read_excel(
     f"source-data/pisa-team-files/PEFA_{country_code2}_{year}_use.xlsx",
     header=[10],
     index_col=[0],
-    sheet_name="Sheet 3",
+    sheet_name="end-use",
     nrows=39,
+    dtype=coltype_dict,
+    na_values=[":","m"]
 )
 e_use = pd.read_excel(
     f"source-data/pisa-team-files/PEFA_{country_code2}_{year}_use.xlsx",
     header=[10],
     index_col=[0],
-    sheet_name="Sheet 4",
+    sheet_name="emission-relevant-use",
     nrows=39,
+    dtype=coltype_dict,
+    na_values=[":","m"]
 )
+t_use = t_use.drop(labels="PROD_NRG (Labels)", axis="index")
+t_use = t_use[coltype_dict.keys()]
+f_use = f_use.drop(labels="PROD_NRG (Labels)", axis="index")
+f_use = f_use[coltype_dict.keys()]
+e_use = e_use.drop(labels="PROD_NRG (Labels)", axis="index")
+e_use = e_use[coltype_dict.keys()]
 
-t_use.dropna(axis=0, how="all", inplace=True)
-t_use.dropna(axis=1, how="any", inplace=True)
-t_use.drop(
-    labels=["Unnamed: 132", "Unnamed: 134", "Unnamed: 136", "Unnamed: 138"],
-    axis=1,
-    inplace=True,
-)
-
-f_use.dropna(axis=0, how="all", inplace=True)
-f_use.dropna(axis=1, how="any", inplace=True)
-
-e_use.dropna(axis=0, how="all", inplace=True)
-e_use.dropna(axis=1, how="any", inplace=True)
-e_use.drop(
-    labels=["Unnamed: 134", "Unnamed: 138", "Unnamed: 140"], axis=1, inplace=True
-)
 e_use.loc[["Electrical energy", "Heat"]] = 0
 ```
 
 ```{python}
-t_use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products_PEFA)
+t_use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products_PEFA, dtype="float64")
 for m in E_products_PEFA:
     for i in agg_ind.keys():
         t_use_sec_agg.loc[i, m] = t_use.loc[m, agg_ind[i]].sum()
 
-f_use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products_PEFA)
+f_use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products_PEFA, dtype="float64")
 for m in E_products_PEFA:
     for i in agg_ind.keys():
         f_use_sec_agg.loc[i, m] = f_use.loc[m, agg_ind[i]].sum()
 
-e_use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products_PEFA)
+e_use_sec_agg = pd.DataFrame(index=agg_ind.keys(), columns=E_products_PEFA, dtype="float64")
 for m in E_products_PEFA:
     for i in agg_ind.keys():
         e_use_sec_agg.loc[i, m] = e_use.loc[m, agg_ind[i]].sum()
@@ -2255,12 +2251,12 @@ for m in E_products_PEFA:
 
 ```{python}
 f_use_share = f_use_sec_agg.div(use_sec_agg_pefa.where(use_sec_agg_pefa != 0, np.nan))
-f_use_share.fillna(value=0, inplace=True)
+f_use_share.fillna(value=0.0, inplace=True)
 ```
 
 ```{python}
 e_use_share = e_use_sec_agg.div(use_sec_agg_pefa.where(use_sec_agg_pefa != 0, np.nan))
-e_use_share.fillna(value=0, inplace=True)
+e_use_share.fillna(value=0.0, inplace=True)
 ```
 
 #### Findem
@@ -2273,27 +2269,28 @@ e_use_hh = e_use.loc[E_products_PEFA, "Total activities by households"].squeeze(
 
 ```{python}
 f_use_share_hh = f_use_hh.div(use_hh.where(use_hh != 0, np.nan))
-f_use_share_hh.fillna(value=0, inplace=True)
+f_use_share_hh.fillna(value=0.0, inplace=True)
 ```
 
 ```{python}
 e_use_share_hh = e_use_hh.div(use_hh.where(use_hh != 0, np.nan))
-e_use_share_hh.fillna(value=0, inplace=True)
+e_use_share_hh.fillna(value=0.0, inplace=True)
 ```
 
 ### Split D
 
 ```{python}
 # To split D, we assume that all D subsectors have the same emission relevant and end use energy shares by product
+# except for final heat use
 D_sectors = ["D1", "D2", "D3"]
 ```
 
 ```{python}
-f_use_share_D = pd.DataFrame(index=D_sectors, columns=E_products_PEFA)
+f_use_share_D = pd.DataFrame(index=D_sectors, columns=E_products_PEFA, dtype="float64")
 for i in D_sectors:
     f_use_share_D.loc[i] = f_use_share.loc["D"]
 
-# Heat
+# Heat, documentation: Physical energy IO, Types of use
 for i in ["D2", "D3"]:
     f_use_share_D.loc[i, "Heat"] = 1
 f_heatuse_D1 = f_use_sec_agg.loc["D", "Heat"] - use_D.loc[["D2", "D3"], "Heat"].sum()
@@ -2305,7 +2302,7 @@ f_use_share = f_use_share.reindex(sectors_D)
 ```
 
 ```{python}
-e_use_share_D = pd.DataFrame(index=D_sectors, columns=E_products_PEFA)
+e_use_share_D = pd.DataFrame(index=D_sectors, columns=E_products_PEFA, dtype="float64")
 for i in D_sectors:
     e_use_share_D.loc[i] = e_use_share.loc["D"]
 
@@ -2317,42 +2314,27 @@ e_use_share = e_use_share.reindex(sectors_D)
 ### Aggregate and export
 
 ```{python}
-# Energy Products aggregation
-PEFA_E_prod_coal = [
-    "Hard coal",
-    "Brown coal and peat",
-    "Secondary coal products (coke, coal tar, patent fuel, BKB and peat products)",
-    "Derived gases (= manufactured gases excl. biogas)",
-]
-PEFA_E_prod_gas_natural = ["Natural gas (without bio)"]
+# Energy Products aggregation, differing from earlier only by the unaggregated two categories
 PEFA_E_prod_oil = [
     "Crude oil, NGL, and other hydrocarbons (excl. bio)",
     "Motor spirit (without bio)",
     "Kerosenes and jet fuels (without bio)",
     "Naphtha",
-    "Transport diesel (without bio)",
-    "Heating and other gasoil (without bio)",
+    "Transport diesel (without bio)", # unaggregated
+    "Heating and other gasoil (without bio)", # unaggregated
     "Residual fuel oil",
     "Refinery gas, ethane and LPG",
     "Other petroleum products incl. additives/oxygenates and refinery feedstocks",
 ]
-PEFA_E_prod_nuc = ["Nuclear fuel"]
-PEFA_E_prod_biofuels = [
-    "Wood, wood waste and other solid biomass, charcoal",
-    "Liquid biofuels",
-    "Biogas",
-]
-PEFA_E_prod_elec = ["Electrical energy"]
-PEFA_E_prod_heat = ["Heat"]
 
 PEFA_E_products_agg = {
-    "Coal and coal products": PEFA_E_prod_coal,
-    "Natural gas": PEFA_E_prod_gas_natural,
+    "Coal and coal products": E_prod_coal,
+    "Natural gas": E_prod_gas_natural,
     "Oil and petroleum products": PEFA_E_prod_oil,
-    "Nuclear fuel": PEFA_E_prod_nuc,
-    "Biofuels": PEFA_E_prod_biofuels,
-    "Electricity": PEFA_E_prod_elec,
-    "Heat": PEFA_E_prod_heat,
+    "Nuclear fuel": E_prod_nuc,
+    "Biofuels": E_prod_biofuels,
+    "Electricity": E_prod_elec,
+    "Heat": E_prod_heat,
 }
 ```
 
@@ -2360,19 +2342,19 @@ PEFA_E_products_agg = {
 
 ```{python}
 t_use_sec_agg_E_agg = pd.DataFrame(
-    index=agg_ind.keys(), columns=PEFA_E_products_agg.keys()
+    index=agg_ind.keys(), columns=PEFA_E_products_agg.keys(), dtype="float64"
 )
 for m in PEFA_E_products_agg.keys():
     t_use_sec_agg_E_agg[m] = t_use_sec_agg[PEFA_E_products_agg[m]].sum(axis=1)
 
 f_use_sec_agg_E_agg = pd.DataFrame(
-    index=agg_ind.keys(), columns=PEFA_E_products_agg.keys()
+    index=agg_ind.keys(), columns=PEFA_E_products_agg.keys(), dtype="float64"
 )
 for m in PEFA_E_products_agg.keys():
     f_use_sec_agg_E_agg[m] = f_use_sec_agg[PEFA_E_products_agg[m]].sum(axis=1)
 
 e_use_sec_agg_E_agg = pd.DataFrame(
-    index=agg_ind.keys(), columns=PEFA_E_products_agg.keys()
+    index=agg_ind.keys(), columns=PEFA_E_products_agg.keys(), dtype="float64"
 )
 for m in PEFA_E_products_agg.keys():
     e_use_sec_agg_E_agg[m] = e_use_sec_agg[PEFA_E_products_agg[m]].sum(axis=1)
@@ -2381,16 +2363,18 @@ for m in PEFA_E_products_agg.keys():
 
 ```{python}
 e_use_share_agg_E = e_use_sec_agg_E_agg / use_sec_agg_E_agg
-e_use_share_agg_E.fillna(value=0, inplace=True)
+e_use_share_agg_E.fillna(value=0.0, inplace=True)
 
 f_use_share_agg_E = f_use_sec_agg_E_agg / use_sec_agg_E_agg
-f_use_share_agg_E.fillna(value=0, inplace=True)
+f_use_share_agg_E.fillna(value=0.0, inplace=True)
 ```
 
 ##### Split D
 
 ```{python}
-e_use_share_D_agg_E = pd.DataFrame(index=D_sectors, columns=E_products_agg.keys())
+# TODO: this seems to be kind of duplicate work to what we did already without the energy product aggregation.
+# See if it could be done only once.
+e_use_share_D_agg_E = pd.DataFrame(index=D_sectors, columns=E_products_agg.keys(), dtype="float64")
 for i in D_sectors:
     e_use_share_D_agg_E.loc[i] = e_use_share_agg_E.loc["D"]
 
@@ -2400,13 +2384,12 @@ e_use_share_agg_E = e_use_share_agg_E.reindex(sectors_D)
 ```
 
 ```{python}
-f_use_share_D_agg_E = pd.DataFrame(index=D_sectors, columns=E_products_agg.keys())
+f_use_share_D_agg_E = pd.DataFrame(index=D_sectors, columns=E_products_agg.keys(), dtype="float64")
 for i in D_sectors:
     f_use_share_D_agg_E.loc[i] = f_use_share_agg_E.loc["D"]
 
 # Heat
-for i in ["D2", "D3"]:
-    f_use_share_D_agg_E["Heat"] = f_use_share_D["Heat"]
+f_use_share_D_agg_E["Heat"] = f_use_share_D["Heat"]
 
 f_use_share_agg_E = pd.concat([f_use_share_agg_E, f_use_share_D_agg_E], axis=0)
 f_use_share_agg_E.drop("D", axis=0, inplace=True)
@@ -2417,25 +2400,25 @@ f_use_share_agg_E = f_use_share_agg_E.reindex(sectors_D)
 #### households
 
 ```{python}
-use_hh_E_agg = pd.DataFrame(index=E_products_agg.keys(), columns=["hh"]).squeeze()
-for m in E_products_agg.keys():
-    use_hh_E_agg[m] = use_hh[E_products_agg[m]].sum()
+use_hh_E_agg = pd.DataFrame(index=PEFA_E_products_agg.keys(), columns=["hh"], dtype="float64").squeeze()
+for m in PEFA_E_products_agg.keys():
+    use_hh_E_agg[m] = use_hh[PEFA_E_products_agg[m]].sum()
 
-f_use_hh_E_agg = pd.DataFrame(index=E_products_agg.keys(), columns=["hh"]).squeeze()
-for m in E_products_agg.keys():
-    f_use_hh_E_agg[m] = f_use_hh[E_products_agg[m]].sum()
+f_use_hh_E_agg = pd.DataFrame(index=PEFA_E_products_agg.keys(), columns=["hh"], dtype="float64").squeeze()
+for m in PEFA_E_products_agg.keys():
+    f_use_hh_E_agg[m] = f_use_hh[PEFA_E_products_agg[m]].sum()
 
-e_use_hh_E_agg = pd.DataFrame(index=E_products_agg.keys(), columns=["hh"]).squeeze()
-for m in E_products_agg.keys():
-    e_use_hh_E_agg[m] = e_use_hh[E_products_agg[m]].sum()
+e_use_hh_E_agg = pd.DataFrame(index=PEFA_E_products_agg.keys(), columns=["hh"], dtype="float64").squeeze()
+for m in PEFA_E_products_agg.keys():
+    e_use_hh_E_agg[m] = e_use_hh[PEFA_E_products_agg[m]].sum()
 ```
 
 ```{python}
 e_use_share_hh_E_agg = e_use_hh_E_agg.div(use_hh_E_agg.where(use_hh_E_agg != 0, np.nan))
-e_use_share_hh_E_agg.fillna(value=0, inplace=True)
+e_use_share_hh_E_agg.fillna(value=0.0, inplace=True)
 
 f_use_share_hh_E_agg = f_use_hh_E_agg.div(use_hh_E_agg.where(use_hh_E_agg != 0, np.nan))
-f_use_share_hh_E_agg.fillna(value=0, inplace=True)
+f_use_share_hh_E_agg.fillna(value=0.0, inplace=True)
 ```
 
 #### Export
