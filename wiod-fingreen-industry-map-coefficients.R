@@ -22,10 +22,11 @@ eurostat_to_fingreen_industry_ava_map <- readxl::read_xlsx(
   sheet = "ava"
 )
 
-wiod_to_fingreen_industry_map <- readxl::read_xlsx(
-  path = "source-data/mappings/wiod-industry-to-fingreen-industry-map.xlsx",
+wiod_to_fingreen_industry_map <- readODS::read_ods(
+  path = "source-data/mappings/wiod-industry-to-fingreen-industry-map.ods",
   sheet = "wiod"
-)
+) |> 
+  select(wiod_nace_r2, fingreen_industry_code, relationship)
 
 
 r_s_total_use <- r_s_total_use |>
@@ -54,3 +55,15 @@ disaggregation_coefficients <- r_s_total_use |>
   ) |> 
   distinct() |> 
   mutate(disaggregation_coefficient = sum_by_fingreen_industry / sum_by_wiod_industry)
+
+result <- wiod_to_fingreen_industry_map |> 
+  left_join(
+    disaggregation_coefficients |> select(wiod_nace_r2, fingreen_industry_code, disaggregation_coefficient),
+    by = c("wiod_nace_r2", "fingreen_industry_code")
+  )
+
+readODS::write_ods(
+  result,
+  path = "source-data/mappings/wiod-industry-to-fingreen-industry-map.ods",
+  sheet = "wiod"
+)
