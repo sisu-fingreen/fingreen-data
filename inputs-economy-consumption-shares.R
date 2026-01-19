@@ -6,10 +6,17 @@ library(pxweb)
 library(ggplot2)
 
 source("fingreen-r-utils.R")
+source("R/get-number-of-households.R")
 
 # needed but not loaded to the namespace
 
 stopifnot(is_installed("mipfp"))
+
+# parameters -------------------------------------------------------------
+
+base_year <- 2010L
+
+geo <- "FI"
 
 # directory setup ---------------------------------------------------------
 
@@ -42,145 +49,122 @@ simple_coicop_categories <- c("CP01", "CP02", "CP03", "CP05", "CP06", "CP08", "C
 
 split_coicop_categories <- c("CP041_043", "CP044", "CP045", "CP071_072", "CP073", "CP121", "CP122_127")
 
-expenditure_share_data_years <- c(2010L, 2015L, 2020L)
-
-base_year <- 2010L
-
-closest_ref_year <- 2012L # for the expenditures by income quintile data
-
-expenditures_dataset_info <- search_eurostat("Structure of consumption expenditure by income quintile and COICOP consumption purpose", type = "dataset")
-
-expenditures_by_income_quintile_query <- pxweb_query(
-  list(
-    Vuosi = as.character(closest_ref_year),
-    Kulutusmenot = "0",
-    Tuloviidennes = 1:5 %>% as.character(),
-    Tiedot = "kulu_kt_hk_1_1")
-)
-
-expenditures_by_income_quintile <- pxweb_get(
-  url = "https://pxdata.stat.fi:443/PxWeb/api/v1/en/StatFin/ktutk/statfin_ktutk_pxt_14pg.px",
-  query = expenditures_by_income_quintile_query
-) %>% 
-  as.data.frame() %>% 
-  fix_names() %>% 
-  mutate(
-    quantile = factor(
-      income_quintile,
-      levels = c("I (Lowest-income 20 %)", "II", "III", "IV", "V (Highest-income 20 %)"),
-      labels = paste0("QUINTILE", 1:5)
-    )
-  )
-
-expenditures_by_coicop_category_query <- pxweb_query(
-  list(
-    Taloustoimi = "P31DCK", # Households consumption expenditure in Finland
-    Kestävyysluokka = "SSS", # Total over all durability classes
-    Kulutusluokka = "*",
-    Tiedot = "cp",
-    Sektori = "S14", # Households
-    Vuosi = as.character(base_year)
-  )
-)
-
-expenditures_by_coicop_category <- pxweb_get(
-  url = "https://pxdata.stat.fi:443/PxWeb/api/v1/en/StatFin/vtp/statfin_vtp_pxt_127s.px",
-  query = expenditures_by_coicop_category_query
-) %>% 
-  as.data.frame() %>% 
-  fix_names()
-
-expenditure_shares <- get_eurostat(
-  id = expenditures_dataset_info$code[1],
-  filters = list(time = expenditure_share_data_years, geo = "FI"),
+expenditure_share_by_coicop_by_quintile <- get_eurostat(
+  "hbs_str_t223",
   time_format = "num",
-  stringsAsFactors = FALSE
-)
+  filters = list(
+    geo = geo,
+    time = base_year,
+    quant_inc = paste0("QU", 1:5),
+    unit = "PM"
+  )
+) |> 
+  mutate(year = as.integer(time))
 
-# expenditure data processing ---------------------------------------------------------
+mean_expenditure_by_quintile <- get_eurostat(
+  "hbs_exp_t133",
+  time_format = "num",
+  filters = list(
+    geo = geo,
+    time = base_year,
+    quant_inc = paste0("QU", 1:5),
+    unit = "PPS_HH" # Purchasing power standard per household
+  )
+) |> 
+  mutate(year = as.integer(time))
 
-expenditures_by_fingreen_coicop <- expenditures_by_coicop_category %>%
+expenditure_by_coicop <- get_eurostat(
+  "nama_10_co3_p3",
+  time_format = "num",
+  filters = list(
+    geo = geo,
+    time = base_year,
+    unit = "CP_MEUR" # Current prices millions of euros
+  )
+) |> 
   mutate(
-    coicop_code_only = gsub("(^\\d.*?\\s).*", "\\1", x = consumption_class, perl = T),
-    category_level = stringi::stri_count(coicop_code_only, fixed = ".")) %>%
-  filter(category_level == 1L) %>% 
-  mutate(
-    year = as.integer(year),
-    fingreen_coicop = statfin_coicop_to_fingreen_coicop(coicop_code_only)
-  ) %>% 
-  group_by(year, fingreen_coicop) %>% 
-  summarise(expenditure = sum(current_prices_millions_of_euro, na.rm = T), .groups = "drop")
+    year = as.integer(time)
+  )
 
-expenditure_shares_processed <- expenditure_shares %>%
-  filter(quantile != "UNK") %>% 
-  mutate(
-    time = as.integer(time),
-    fingreen_coicop = eurostat_coicop_to_fingreen_coicop(coicop)
-  ) %>% 
+n_households <- get_number_of_households(geo, base_year)
+
+# processing ---------------------------------------------------------
+
+expenditure_share_by_fingreen_coicop_by_quintile <- expenditure_share_by_coicop_by_quintile |>
+  mutate(fingreen_coicop = eurostat_coicop_to_fingreen_coicop(coicop)) |> 
   # choose the right level of coicop aggregation
   filter(
     (fingreen_coicop %in% simple_coicop_categories & stringi::stri_length(coicop) == 4L) |
       (fingreen_coicop %in% split_coicop_categories & stringi::stri_length(coicop) == 5L)
   ) %>% 
-  group_by(geo, time, quantile, fingreen_coicop) %>% 
-  summarise(expenditure_share = sum(values, na.rm = T) / 1000, .groups = "drop") %>% 
-  mutate(quantile = as.factor(quantile))
+  mutate(quintile = factor(quant_inc, levels = paste0("QU", 1:5))) |> 
+  group_by(geo, year, quintile, fingreen_coicop) %>% 
+  summarise(expenditure_share = sum(values, na.rm = T) / 1000, .groups = "drop") |> 
+  # Normalize the shares to sum to one (instead some were like 0.999)
+  group_by(geo, year, quintile) |> 
+  mutate(expenditure_share = expenditure_share / sum(expenditure_share)) |> 
+  ungroup()
 
+expenditure_by_fingreen_coicop <- expenditure_by_coicop |> 
+  mutate(fingreen_coicop = eurostat_coicop_to_fingreen_coicop(coicop)) |> 
+  # choose the right level of coicop aggregation
+  filter(
+    (fingreen_coicop %in% simple_coicop_categories & stringi::stri_length(coicop) == 4L) |
+      (fingreen_coicop %in% split_coicop_categories & stringi::stri_length(coicop) == 5L)
+  ) %>% 
+  group_by(geo, year, fingreen_coicop) |> 
+  summarise(expenditure = sum(values, na.rm = T) * 1e6, .groups = "drop")
 
-# consumption by quintile for base year --------------------------------------------
+total_pps_expenditure = mean_expenditure_by_quintile |> 
+  left_join(n_households, by = c("geo", "year")) |> 
+  mutate(expenditure = n_households / 5 * values) |> 
+  group_by(geo, year) |> 
+  summarise(total_pps_expenditure = sum(expenditure)) |> 
+  select(geo, year, total_pps_expenditure)
 
-consumption_share_by_quintile_ref_year <- expenditures_by_income_quintile %>% 
-  mutate(
-    share = household_s_consumption_expenditure_at_current_prices_per_year_eur /
-      sum(household_s_consumption_expenditure_at_current_prices_per_year_eur)
-  )
+total_consumption_expenditure <- expenditure_by_coicop |> 
+  filter(coicop == "TOTAL") |> 
+  mutate(total_eur_expenditure = values * 1e6) |> 
+  select(geo, year, total_eur_expenditure)
 
-total_hh_consumption_base_year <- expenditures_by_coicop_category %>%
-  filter(consumption_class == "Total") %>% 
-  pull(current_prices_millions_of_euro)
+pps_to_eur_conversion_factor <- total_pps_expenditure |> 
+  left_join(total_consumption_expenditure, by = c("geo", "year")) |> 
+  mutate(pps_to_eur_conversion_factor = total_eur_expenditure / total_pps_expenditure) |> 
+  select(geo, year, pps_to_eur_conversion_factor)
 
-consumption_by_quintile_normalized_to_base_year <- consumption_share_by_quintile_ref_year %>% 
-  mutate(expenditure_current_price_base_year = share * total_hh_consumption_base_year)
+mean_expenditure_by_quintile_eur <- mean_expenditure_by_quintile |> 
+  left_join(pps_to_eur_conversion_factor) |> 
+  mutate(mean_expenditure_eur = values * pps_to_eur_conversion_factor) |> 
+  mutate(quintile = factor(quant_inc, levels = paste0("QU", 1:5))) |> 
+  select(geo, year, quintile, mean_expenditure_eur)
 
+total_expenditure_by_quintile_eur <- mean_expenditure_by_quintile_eur |> 
+  left_join(n_households, by = c("geo", "year")) |> 
+  mutate(total_expenditure_eur = n_households / 5 * mean_expenditure_eur) |> 
+  select(geo, year, quintile, total_expenditure_eur)
 
-# coicop consumption shares per quintile ----------------------------------
+expenditures_by_fingreen_coicop_by_quintile <- expenditure_share_by_fingreen_coicop_by_quintile |> 
+  left_join(total_expenditure_by_quintile_eur, by = c("geo", "year", "quintile")) |> 
+  mutate(expenditure_eur = expenditure_share * total_expenditure_eur)
 
-expenditure_shares_wide <- expenditure_shares_processed %>% 
-  group_by(geo, quantile, fingreen_coicop) %>% 
-  summarise(
-    mean_expenditure_share = mean(expenditure_share),
-    .groups = "drop"
-  ) %>%
-  select(-geo) %>% 
-  tidyr::pivot_wider(names_from = quantile, values_from = mean_expenditure_share) %>% 
+# correction of expenditure shares ----------------------------------
+
+# Since the expenditure shares by coicop by quintile are gathered by survey, they don't necessarily add
+# up to sensible shares of total expenditure by coicop. Therefore we normalize the shares with the
+# RAS algorithm
+
+expenditure_wide <- expenditures_by_fingreen_coicop_by_quintile |> 
+  select(quintile, fingreen_coicop, expenditure_eur) |> 
+  tidyr::pivot_wider(names_from = "quintile", values_from = expenditure_eur) |> 
   arrange(fingreen_coicop)
 
-expenditure_share_matrix <- expenditure_shares_wide %>% 
-  select(-fingreen_coicop) %>% 
+expenditure_matrix <- expenditure_wide |> 
+  select(-fingreen_coicop) |> 
   as.matrix()
 
-expenditure_matrix <- expenditure_share_matrix %*%
-  diag(consumption_by_quintile_normalized_to_base_year$expenditure_current_price_base_year)
+desired_column_sums <- total_expenditure_by_quintile_eur$total_expenditure_eur
 
-shares_of_sum <- function(x){return(x / sum(x))}
-
-# TODO: Do the whole RAS thing with absolute values instead of proportions, and see what happens
-
-desired_column_sums <- consumption_by_quintile_normalized_to_base_year$expenditure_current_price_base_year
-
-# desired_column_sums <- rep(1, 5)
-
-desired_row_sums <- expenditures_by_fingreen_coicop$expenditure #%>% 
-  # shares_of_sum()
-
-# This shows the difference between the hbs survey data and the official consumption expenditure data
-# expenditures_by_fingreen_coicop %>% 
-#   mutate(
-#     expected = rowSums(expenditure_matrix),
-#     rel_diff_to_expected = (expenditure - expected) / expected,
-#     description = fingreen_coicop_to_description(fingreen_coicop)
-#   ) %>% 
-#   View()
+desired_row_sums <- expenditure_by_fingreen_coicop$expenditure
 
 expenditure_matrix_ipfp <- mipfp::Ipfp(
   seed = expenditure_matrix,
@@ -191,21 +175,27 @@ expenditure_matrix_ipfp <- mipfp::Ipfp(
 # divide columns with column sums
 expenditure_shares_corrected <- expenditure_matrix_ipfp$x.hat %*% diag(1 / desired_column_sums)
 
-
 # write results -----------------------------------------------------------
 
 res_coicop_consumption_shares_per_quintile <- expenditure_shares_corrected %>%
   as.data.frame() %>%
   mutate(
-    fingreen_coicop = expenditure_shares_wide$fingreen_coicop,
+    fingreen_coicop = expenditure_wide$fingreen_coicop,
     .before = V1 # set as the first column
   ) %>%
   # Just an ugly way to name the columns the same as in expenditure_shares_wide
-  rename_with(.fn = function(x){return(colnames(expenditure_shares_wide))})
+  rename_with(.fn = function(x){return(colnames(expenditure_wide))})
 
-res_consumption_by_quintile <- consumption_by_quintile_normalized_to_base_year %>% 
-  select(quantile, expenditure_current_price_base_year) %>% 
-  tidyr::pivot_wider(names_from = quantile, values_from = expenditure_current_price_base_year)
+res_coicop_consumption_shares_per_quintile |> 
+  tidyr::pivot_longer(cols = QU1:QU5, names_to = "quintile") |> 
+  left_join(expenditure_share_by_fingreen_coicop_by_quintile, by = c("fingreen_coicop", "quintile")) |> 
+  mutate(change = value - expenditure_share) |> 
+  View()
+
+res_consumption_by_quintile <- total_expenditure_by_quintile_eur |> 
+  left_join(mean_expenditure_by_quintile_eur, by = c("geo", "year", "quintile")) |> 
+  tidyr::pivot_longer(cols = c("mean_expenditure_eur", "total_expenditure_eur"), names_to = "measure") |> 
+  tidyr::pivot_wider(names_from = "quintile", values_from = "value")
 
 writexl::write_xlsx(
   res_coicop_consumption_shares_per_quintile,
