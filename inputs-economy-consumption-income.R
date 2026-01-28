@@ -32,7 +32,7 @@ geo = "FI" # not used atm
 # You could just take the average, but as the household numbers vary marginally, this is marginally
 # more precise (and very easy).
 
-mean_equivalent_household_income_per_decile <- pxweb::pxweb_get(
+mean_disposable_household_income_per_decile <- pxweb::pxweb_get(
   url = "https://statfin.stat.fi/PxWeb/api/v1/en/StatFin/tjt/statfin_tjt_pxt_128c.px",
   query = list(
     Tiedot = c("kturaha", "asuntok"),
@@ -44,7 +44,7 @@ mean_equivalent_household_income_per_decile <- pxweb::pxweb_get(
 
 # processing -------------------------------------------------------------
 
-mean_equivalent_household_income_per_quintile <- mean_equivalent_household_income_per_decile |> 
+mean_disposable_household_income_per_quintile <- mean_disposable_household_income_per_decile |> 
   mutate(
     total_hh_income_per_decile = number_of_household_dwelling_units * x8_disposable_cash_income_mean,
     quintile = case_match(
@@ -61,8 +61,11 @@ mean_equivalent_household_income_per_quintile <- mean_equivalent_household_incom
 
 # output results ---------------------------------------------------------
 
-res_mean_equivalent_household_income_per_quintile <- mean_equivalent_household_income_per_quintile |> 
+res_mean_disposable_household_income_per_quintile <- mean_disposable_household_income_per_quintile |> 
   mutate(year = base_year) |> 
   tidyr::pivot_wider(names_from = quintile, values_from = mean_hh_disposable_income)
 
-writexl::
+writexl::write_xlsx(
+  res_mean_disposable_household_income_per_quintile,
+  path = paste0(results_dir, "/mean-disposable-household-income-per-quintile.xlsx")
+)
