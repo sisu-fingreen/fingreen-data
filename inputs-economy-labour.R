@@ -26,6 +26,7 @@ create_dir_if_not_exists(results_dir, "results")
 global_params <- config::get(file = "global-params.yml")
 
 data_year <- global_params$base_year
+geo <- global_params$geo
 
 # EMP_DC is employment domestic concept which means all employed in the
 # industry, not just employee status
@@ -33,7 +34,7 @@ hours_worked_and_n_workers <- get_eurostat(
   "nama_10_a64_e",
   time_format = "num",
   filters = list(
-    geo = global_params$geo,
+    geo = geo,
     na_item = "EMP_DC",
     unit = c("THS_HW", "THS_PER"),
     time = data_year
@@ -81,6 +82,6 @@ results <- hours_worked_and_n_workers_transformed |>
 
 # results ----------------------------------------------------------------
 
-writexl::write_xlsx(results, path = paste0(results_dir, "hours-worked-and-employment.xlsx"))
+writexl::write_xlsx(results, path = sprintf("%shours-worked-and-employment-%s-%s.xlsx", results_dir, tolower(geo), data_year))
 
 
