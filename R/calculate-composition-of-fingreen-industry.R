@@ -1,5 +1,12 @@
 library(dplyr)
 
+# If you have a fingreen industry that consists of
+# several, more disaggregated industries in some other mapping,
+# use this function to calculate the weight of the
+# more disaggregated industries within a given fingreen industry
+# based on total use. Country, year (time) and stk_flow to be used
+# as a basis for the calculation can be selected.
+
 calculate_composition_of_fingreen_industry <- function(
   fingreen_industry_code,
   fingreen_industry_to_eurostat_naio_map,
@@ -37,29 +44,29 @@ calculate_composition_of_fingreen_industry <- function(
   return(res)
 }
 
-debugonce(calculate_composition_of_fingreen_industry)
+# debugonce(calculate_composition_of_fingreen_industry)
 
-eurostat_naio_to_desired_industry_map <- readxl::read_xlsx(
-  "source-data/mappings/eurostat-io-industry-to-fingreen-industry-map.xlsx",
-  sheet = "ava"
-) |> 
-  filter(relationship != "extra") |> 
-  transmute(
-    nace_r2 = eurostat_industry_code,
-    nace_r2_lvl_1 = substr(eurostat_industry_code, 1, 1)
-  ) |> 
-  distinct()
+# eurostat_naio_to_desired_industry_map <- readxl::read_xlsx(
+#   "source-data/mappings/eurostat-io-industry-to-fingreen-industry-map.xlsx",
+#   sheet = "ava"
+# ) |> 
+#   filter(relationship != "extra") |> 
+#   transmute(
+#     nace_r2 = eurostat_industry_code,
+#     nace_r2_lvl_1 = substr(eurostat_industry_code, 1, 1)
+#   ) |> 
+#   distinct()
 
-fingreen_industry_to_eurostat_naio_map <- readxl::read_xlsx(
-  "source-data/mappings/eurostat-io-industry-to-fingreen-industry-map.xlsx",
-  sheet = "ava"
-) |> 
-  mutate(relationship != "extra")
+# fingreen_industry_to_eurostat_naio_map <- readxl::read_xlsx(
+#   "source-data/mappings/eurostat-io-industry-to-fingreen-industry-map.xlsx",
+#   sheet = "ava"
+# ) |> 
+#   mutate(relationship != "extra")
 
-foo <- calculate_composition_of_fingreen_industry(
-  fingreen_industry_code = "MN",
-  fingreen_industry_to_eurostat_naio_map = fingreen_industry_to_eurostat_naio_map,
-  eurostat_naio_to_desired_industry_map = eurostat_naio_to_desired_industry_map,
-  desired_industry_mapping_name = "nace_r2_lvl_1"
-)
+# foo <- calculate_composition_of_fingreen_industry(
+#   fingreen_industry_code = "MN",
+#   fingreen_industry_to_eurostat_naio_map = fingreen_industry_to_eurostat_naio_map,
+#   eurostat_naio_to_desired_industry_map = eurostat_naio_to_desired_industry_map,
+#   desired_industry_mapping_name = "nace_r2_lvl_1"
+# )
 
