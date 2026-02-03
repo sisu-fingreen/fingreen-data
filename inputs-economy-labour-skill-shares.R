@@ -84,15 +84,21 @@ skill_share_by_industry_cleaned <- skill_share_by_industry |>
 skill_share_by_fingreen_industry <- skill_share_by_industry_cleaned |> 
   left_join(
     eurostat_edat_to_fingreen_industry_map, by = c("nace_r2"),
-  relationship = "many-to-many"
+    relationship = "many-to-many"
   ) |> 
-  group_by(fingreen_industry_code, skill_level) |> 
-  # in cases where fingreen industry is aggregated from multiple industries in the data, use
-  # the shares in the eurostat_edat_to_fingreen_industry_map to calculate a weighted average
-  summarise(
-    values = weighted.mean(values, w = coalesce(share_of_fingreen_industry, 1)),
-    .groups = "drop"
-  )
+    group_by(fingreen_industry_code, skill_level) |> 
+      # in cases where fingreen industry is aggregated from multiple industries in the data, use
+    # the shares in the eurostat_edat_to_fingreen_industry_map to calculate a weighted average
+    summarise(
+      values = weighted.mean(values, w = coalesce(share_of_fingreen_industry, 1)),
+      .groups = "drop"
+    )
+    
+
+# RAS correction ---------------------------------------------------------
+
+# Correct shares with RAS to get good totals.
+# First go from shares to absolute numbers, correct with RAS, and then back to shares.
 
 get_proper_skill_shares <- function(geo, year){
   if(geo == "FI") {
@@ -131,38 +137,58 @@ get_proper_skill_shares <- function(geo, year){
 
 proper_skill_shares <- get_proper_skill_shares(geo, base_year)
 
-get_n_employed_per_industry <- function() {
+get_n_employed_by_fingreen_industry <- function() {
   n_employed_file <- sprintf("results/inputs-economy/labour/hours-worked-and-employment-%s-%s.xlsx", tolower(geo), base_year)
   if(!file.exists(n_employed_file)) {
     cat("Labour data does not exist, running inpust-economy-labour.R\n")
     source("inputs-economy-labour.R", local = TRUE)
     cat("Done.\n")
   }
-  n_employed_per_industry <- readxl::read_xlsx(n_employed_file) |> 
+  n_employed_by_fingreen_industry <- readxl::read_xlsx(n_employed_file) |> 
     filter(variable == "employment") |> 
     tidyr::pivot_longer(cols = A1:ST, names_to = "fingreen_industry_code", values_to = "n_employed")
-  return(n_employed_per_industry)
+  return(n_employed_by_fingreen_industry)
 }
 
-n_employed_per_industry <- get_n_employed_per_industry()
+n_employed_by_fingreen_industry <- get_n_employed_by_fingreen_industry()
 
-# Correct shares with RAS to get good totals
-desired_column_sums <- rep(1, nrow(skill_share_by_fingreen_industry) / 3)
+n_employed_total <- sum(n_employed_by_fingreen_industry$n_employed)
 
-# TODO: do RAS with ns, then go back to shares
-desired_row_sums <- proper_skill_shares
+n_employed_by_skill <- proper_skill_shares |> 
+  mutate(n_employed_by_skill = n_employed_total * share_of_employed_persons)
 
-expenditure_matrix_ipfp <- mipfp::Ipfp(
-  seed = expenditure_matrix,
+n_employed_by_fingreen_industry_by_skill <- skill_share_by_fingreen_industry |> 
+  left_join(n_employed_by_fingreen_industry, by = "fingreen_industry_code") |> 
+  mutate(n_employed_by_skill = n_employed * values / 100) |> 
+  select(-variable, -n_employed)
+
+n_employed_matrix <- n_employed_by_fingreen_industry_by_skill |> 
+  select(skill_level, fingreen_industry_code, n_employed_by_skill) |> 
+  tidyr::pivot_wider(names_from = fingreen_industry_code, values_from = n_employed_by_skill) |> 
+  select(-skill_level) |> 
+  as.matrix()
+
+desired_row_sums <- n_employed_by_skill$n_employed_by_skill
+desired_column_sums <- n_employed_by_fingreen_industry$n_employed
+
+n_employed_matrix_ipfp <- mipfp::Ipfp(
+  seed = n_employed_matrix,
   target.list = list(1,2), # over 1=rows and 2=columns
   target.data = list(desired_row_sums, desired_column_sums)
 )
 
-res <- skill_share_by_fingreen_industry |> 
-  select(skill_level, fingreen_industry_code, values) |> 
-  tidyr::pivot_wider(
-    names_from = fingreen_industry_code,
-    values_from = values
-  ) |> 
-  arrange(skill_level)
+skill_share_by_fingreen_industry_corrected <- n_employed_matrix_ipfp$x.hat %*% diag(1 / desired_column_sums) |> 
+  as.data.frame()
 
+names(skill_share_by_fingreen_industry_corrected) <- n_employed_by_fingreen_industry$fingreen_industry_code
+skill_share_by_fingreen_industry_corrected$skill_level <- as.factor(c("low", "mid", "high"))
+
+# write results ----------------------------------------------------------
+
+res <- skill_share_by_fingreen_industry_corrected |> 
+  relocate(skill_level)
+
+writexl::write_xlsx(
+  res,
+  path = paste0(results_dir, "skill-share-by-industry-", tolower(geo), "-", base_year, ".xlsx")
+)
