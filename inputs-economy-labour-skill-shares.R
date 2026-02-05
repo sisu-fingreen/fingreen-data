@@ -30,6 +30,10 @@ imputation_year <- 2020L # some data is missing for e.g. industry B, we use this
 
 skill_levels <- c("low" = "ED0-2", "mid" = "ED3_4", "high" = "ED5-8")
 
+# This data is for employees, not employed persons. But as we correct it to
+# be consistent with the distribution of employed persons per industry and
+# on the other hand per skill, then it should not matter too much.
+
 skill_share_by_industry <- eurostat::get_eurostat(
   "edat_lfs_9910",
   time_format = "num",
