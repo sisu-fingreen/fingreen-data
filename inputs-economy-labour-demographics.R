@@ -348,7 +348,7 @@ res_male_share_by_industry_and_skill <- employed_demographics_corrected_long |>
   tidyr::pivot_wider(names_from = fingreen_industry_code, values_from = male_share)
 
 result_path_from_filename <- function(filename){
-  res <- paste0(results_dir, filename, "_", tolower(geo), "_", base_year, ".xlsx")
+  res <- paste0(results_dir, filename, "-", tolower(geo), "-", base_year, ".xlsx")
 }
 
 writexl::write_xlsx(
