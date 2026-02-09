@@ -36,7 +36,7 @@ hours_worked_and_n_workers <- get_eurostat(
   filters = list(
     geo = geo,
     na_item = "EMP_DC",
-    unit = c("THS_HW", "THS_PER"),
+    unit = c("THS_HW"),
     time = data_year
   )
 )
@@ -60,13 +60,11 @@ hours_worked_and_n_workers_transformed <- hours_worked_and_n_workers |>
 results <- hours_worked_and_n_workers_transformed |>
   tidyr::pivot_wider(names_from = "unit", values_from = "values") |>
   mutate(
-    hours_worked = THS_HW * 1000,
-    employment = THS_PER * 1000,
-    hours_per_year_per_employee = hours_worked / employment
+    hours_worked = THS_HW * 1000
   ) %>%
-  select(-THS_HW, -THS_PER) %>% 
+  select(-THS_HW) %>% 
   tidyr::pivot_longer(
-    cols = c("hours_worked", "employment", "hours_per_year_per_employee"),
+    cols = c("hours_worked"),
     names_to = "variable",
     values_to = "values"
   ) %>%
@@ -74,14 +72,13 @@ results <- hours_worked_and_n_workers_transformed |>
   mutate(
     variable = factor(
       variable,
-      levels = c("employment", "hours_worked", "hours_per_year_per_employee"),
-      labels = c("employment", "hours/year per industry", "hours/year per employee")
+      levels = c("hours_worked"),
+      labels = c("hours/year per industry")
     )
   ) |> 
   arrange(geo, time, variable)
 
 # results ----------------------------------------------------------------
 
-writexl::write_xlsx(results, path = sprintf("%shours-worked-and-employment-%s-%s.xlsx", results_dir, tolower(geo), data_year))
-
+writexl::write_xlsx(results, path = sprintf("%shours-worked-%s-%s.xlsx", results_dir, tolower(geo), data_year))
 
