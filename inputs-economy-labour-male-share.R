@@ -36,15 +36,18 @@ employed_by_sex_and_industry_lvl1 <- eurostat::get_eurostat(
         geo = geo,
         time = base_year,
         age = "Y15-64",
+        freq = "A",
+        unit = "THS_PER",
         sex = c("T", "M")
     )
 ) |> 
-  filter(!nace_r2 %in% c("TOTAL", "NRP")) |> 
+  select(-unit, -freq, -age, -geo, -time) |> 
+  # U ACTIVITIES OF EXTRATERRITORIAL ORGANISATIONS AND BODIES is generally not needed, and there is no data
+  filter(!nace_r2 %in% c("TOTAL", "NRP", "U")) |> 
   mutate(sex = factor(sex, levels = c("T", "M"), labels = c("total", "male"))) |> 
   tidyr::pivot_wider(names_from = sex, values_from = values) |> 
   fix_names()
   
-
 employed_by_sex_and_industry_lvl2 <- eurostat::get_eurostat(
     "lfsa_egan22d",
     time_format = "num",
@@ -52,62 +55,60 @@ employed_by_sex_and_industry_lvl2 <- eurostat::get_eurostat(
         geo = geo,
         time = base_year,
         age = "Y15-64",
+        freq = "A",
+        unit = "THS_PER",
         sex = c("T", "M")
     )
 ) |> 
-# not needed T98 Undifferentiated goods- and services-producing activities of private households for own use
-  filter(!nace_r2 %in% c("TOTAL", "NRP", "UNK", "T98")) |> 
+  select(-unit, -freq, -age, -geo, -time) |> 
+# No data for (and not needed) T98 Undifferentiated goods- and services-producing activities of private households for own use
+  filter(!nace_r2 %in% c("TOTAL", "NRP", "UNK", "T98", "U99")) |> 
   mutate(sex = factor(sex, levels = c("T", "M"), labels = c("total", "male"))) |> 
   tidyr::pivot_wider(names_from = sex, values_from = values) |> 
   fix_names()
 
 employed_by_sex_and_industry_lvl2_imputed <- employed_by_sex_and_industry_lvl2 |> 
-  # first we impute the parent level information if the male share is missing from a detailed industry
-  mutate(nace_1_digit = substr(nace_r2, 1, 1)) |> 
+  # impute the parent level information if the male share is missing from a detailed industry
+  mutate(nace_lvl1 = substr(nace_r2, 1, 1)) |> 
   left_join(
-    rename(employed_by_sex_and_industry_lvl1, total_1_digit = total, male_1_digit = male),
-    by = c("time", "geo", "unit", "freq", "nace_1_digit" = "nace_r2")
+    rename(employed_by_sex_and_industry_lvl1, total_lvl1 = total, male_lvl1 = male),
+    by = c("nace_lvl1" = "nace_r2")
   ) |> 
   mutate(
     is_imputed = is.na(male) & !is.na(total),
-    male = coalesce(male, total * male_1_digit / total_1_digit)
-  ) |> 
-  # if data for one subindustry is missing but the rest is there, we can allocate the remainder of the total
-  group_by(nace_1_digit) |> 
-  mutate(
-    n_missing_in_group = sum(is.na(male)),
-    total_sum_nonmissing_subindustries_in_group = sum(total, na.rm = T),
-    male_sum_nonmissing_subindustries_in_group = sum(male, na.rm = T)
-  ) |>
-  ungroup() |> 
-  mutate(
-    is_imputed2 = is.na(male) & n_missing_in_group == 1,
-    total = coalesce(
-        total,
-        if_else(n_missing_in_group == 1, total_1_digit - total_sum_nonmissing_subindustries_in_group, NA)
-    ),
-    male = coalesce(
-        male,
-        if_else(n_missing_in_group == 1, male_1_digit - male_sum_nonmissing_subindustries_in_group, NA)
-    )
-  )
-
-# check that the imputation did not produce any silly values
-stopifnot(min(employed_by_sex_and_industry_lvl2_imputed$total) > 0)
-stopifnot(min(employed_by_sex_and_industry_lvl2_imputed$male) > 0)
+    male = coalesce(male, total * male_lvl1 / total_lvl1)
+  ) 
 
 nace_r2_1_and_2_digit_to_fingreen_industry_map <- readxl::read_xlsx(
     "source-data/mappings/nace-r2-1-and-2-digit-to-fingreen-industry-map.xlsx"
 )
 
+employment_share_by_sex_by_nace_lvl1 <- employed_by_sex_and_industry_lvl1 |> 
+  mutate(male_share_lvl1 = male / total) |> 
+  select(nace_r2, male_share_lvl1)
+
 employment_share_by_sex_by_fingreen_industry <- employed_by_sex_and_industry_lvl1 |> 
-  bind_rows(employed_by_sex_and_industry_lvl2) |> 
-  right_join(nace_r2_1_and_2_digit_to_fingreen_industry_map, by = "nace_r2", relationship = "many-to-many") |> 
-  group_by(sex, fingreen_industry_code) |> 
+  bind_rows(employed_by_sex_and_industry_lvl2_imputed) |> 
+  right_join(nace_r2_1_and_2_digit_to_fingreen_industry_map, by = "nace_r2", relationship = "one-to-many") |> 
+  group_by(fingreen_industry_code) |> 
   summarise(
-    values = sum(1000 * values * coalesce(disaggregation_coefficient, 1)),
+    total = sum(1000 * total * coalesce(disaggregation_coefficient, 1)),
+    male = sum(1000 * male * coalesce(disaggregation_coefficient, 1)),
     .groups = "drop"
   ) |> 
-  tidyr::pivot_wider(names_from = sex, values_from = values) |> 
-  mutate(male_share = M / T)
+  mutate(male_share = male / total) |> 
+  # impute the parent category value for the missing ones
+  mutate(nace_lvl1 = substr(fingreen_industry_code, 1, 1)) |> 
+  left_join(employment_share_by_sex_by_nace_lvl1, by = c("nace_lvl1" = "nace_r2")) |> 
+  mutate(male_share = coalesce(male_share, male_share_lvl1))
   
+res <- employment_share_by_sex_by_fingreen_industry |> 
+  select(male_share, fingreen_industry_code) |> 
+  tidyr::pivot_wider(names_from = fingreen_industry_code, values_from = male_share)
+
+writexl::write_xlsx(
+  res,
+  path = sprintf("%smale-share-by-industry-%s-%s.xlsx", results_dir, tolower(geo), base_year)
+)
+
+# TODO: get male share per industry and male share by skill and create the data from there. Other option: microdata
