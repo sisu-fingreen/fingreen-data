@@ -31,8 +31,8 @@ catn <- function(...){
 
 make_names <- function(x){
   res <- tolower(gsub(".", "_", x = make.names(x), fixed = T)) |> 
-    gsub("_+", "_", x = ., perl = T) |> 
-    gsub("^_", "", x = ., perl = T)
+    gsub("_+", "_", x = _, perl = T) |> 
+    gsub("^_", "", x = _, perl = T)
   return(res)
 }
 
