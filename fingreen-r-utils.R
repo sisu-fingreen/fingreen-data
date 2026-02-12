@@ -1,29 +1,48 @@
 # general utils -----------------------------------------------------------
 
+library(dplyr)
+
 is_installed <- function(pkg) {
   nzchar(system.file(package = pkg))
 }
+
+check_required_package_installs <- function(){
+  is_installed("dplyr")
+  is_installed("readxl")
+  is_installed("eurostat")
+  is_installed("tidyr")
+  is_installed("ggplot2")
+  is_installed("pxweb")
+  is_installed("data.table")
+  is_installed("broom")
+  is_installed("stringi")
+  is_installed("plotly")
+  is_installed("writexl")
+  is_installed("htmlwidgets")
+  is_installed("mipfp")
+  is_installed("config")
+}
+
+check_required_package_installs()
 
 catn <- function(...){
   cat(... , "\n", sep = "")
 }
 
 make_names <- function(x){
-  res <- tolower(gsub(".", "_", x = make.names(x), fixed = T)) %>% 
-    gsub("_+", "_", x = ., perl = T) %>% 
-    gsub("^_", "", x = ., perl = T)
+  res <- tolower(gsub(".", "_", x = make.names(x), fixed = T)) |> 
+    gsub("_+", "_", x = _, perl = T) |> 
+    gsub("^_", "", x = _, perl = T)
   return(res)
 }
 
 fix_names <- function(df){
-  library(dplyr)
-  res <- rename_all(df, make_names)
+  res <- dplyr::rename_all(df, make_names)
   return(res)
 }
 
 replace_na <- function(x, value){
-  library(dplyr)
-  res <- if_else(is.na(x), value, x)
+  res <- dplyr::if_else(is.na(x), value, x)
   return(res)
 }
 
@@ -63,9 +82,8 @@ save_plotly_plot <- function(plot, file, ...){
 # categorizations ----------------------------------------------------------
 
 statfin_coicop_to_fingreen_coicop <- function(codes){
-  library(dplyr)
   # Note that the category level has to be at least 2 (which corresponds to 3 in the official level)
-  res <- case_when(
+  res <- dplyr::case_when(
     grepl("^01\\.", x = codes, perl = T) ~ "CP01",
     grepl("^02\\.", x = codes, perl = T) ~ "CP02",
     grepl("^03\\.", x = codes, perl = T) ~ "CP03",
@@ -87,9 +105,8 @@ statfin_coicop_to_fingreen_coicop <- function(codes){
 }
 
 eurostat_coicop_to_fingreen_coicop <- function(codes){
-  library(dplyr)
   
-  res <- case_when(
+  res <- dplyr::case_when(
     grepl("^CP01", x = codes, perl = T) ~ "CP01",
     grepl("^CP02", x = codes, perl = T) ~ "CP02",
     grepl("^CP03", x = codes, perl = T) ~ "CP03",
@@ -107,11 +124,12 @@ eurostat_coicop_to_fingreen_coicop <- function(codes){
     grepl("^CP121", x = codes, perl = T) ~ "CP121",
     grepl("^CP12[2,3,4,5,6,7]", x = codes, perl = T) ~ "CP122_127",
   )
+  return(res)
 }
 
 fingreen_coicop_to_description <- function(codes){
-  library(dplyr)
-  res <- case_match(
+
+  res <- dplyr::case_match(
     codes,
     "CP01" ~ "Food and non-alcoholic beverages",
     "CP02" ~ "Alcoholic beverages, tobacco and narcotics",
@@ -164,7 +182,7 @@ fingreen_industry_code_to_description <- function(codes){
                "R Arts, entertainment and recreation (90-93)", "95 Repair of computers and personal and household goods", 
                "ST Other service activities - Including household emplyers, excluding repair (altered; 94, 96-98)"
     )
-  ) %>% as.character()
+  ) |> as.character()
   return(res)
 }
 
@@ -187,14 +205,13 @@ fingreen_industry_code_to_abbreviation <- function(codes){
                "J ict", "K finance", "L realestate", "MN serv_prof", "MN_72 serv_science", 
                "MN_73 serv_advertising", "O public", "P education", "Q health", 
                "R entertainment", "S95 serv_repair", "ST serv_other")
-  ) %>% as.character()
+  ) |> as.character()
   return(res)
 }
 
 # misc --------------------------------------------------------------------
 
 convert_eur_value_between_years <- function(x, from, to){
-  stopifnot(is_installed("pxweb"))
   stopifnot(is.numeric(x))
   stopifnot(is.numeric(from))
   stopifnot(is.numeric(to))
@@ -204,7 +221,7 @@ convert_eur_value_between_years <- function(x, from, to){
     return(x)
   }
   
-  year_pairs_list <- tibble(from, to) %>% distinct() %>% filter(from != to) %>% asplit(1)
+  year_pairs_list <- tibble(from, to) |> distinct() |> filter(from != to) |> asplit(1)
   
   get_conversion_factor_for_year_pair <- function(year_pair) {
     
@@ -216,21 +233,21 @@ convert_eur_value_between_years <- function(x, from, to){
     conversion_factor <- pxweb::pxweb_get(
       url = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/khi/statfin_khi_pxt_11xy.px",
       query = conversion_factor_query
-    ) %>% as.data.frame() %>% 
-      fix_names() %>% 
-      arrange(vuosi) %>% 
-      summarise(conversion_factor = first(pisteluku) / last(pisteluku)) %>% 
+    ) |> as.data.frame() |> 
+      fix_names() |> 
+      arrange(vuosi) |> 
+      summarise(conversion_factor = first(pisteluku) / last(pisteluku)) |> 
       pull(conversion_factor)
     
     return(conversion_factor)
   }
   
-  conversion_factors <- lapply(year_pairs_list, get_conversion_factor_for_year_pair) %>% unlist()
+  conversion_factors <- lapply(year_pairs_list, get_conversion_factor_for_year_pair) |> unlist()
   
-  conversion_df <- bind_rows(year_pairs_list) %>% cbind(conversion_factors)
+  conversion_df <- bind_rows(year_pairs_list) |> cbind(conversion_factors)
   
-  res_df <- tibble(x, from, to) %>% 
-    left_join(conversion_df, by = c("from", "to")) %>% 
+  res_df <- tibble(x, from, to) |> 
+    left_join(conversion_df, by = c("from", "to")) |> 
     mutate(
       res = case_when(
         from == to ~ x,
@@ -262,13 +279,13 @@ convert_data_from_euklems_to_fingreen_industry <- function(
   stopifnot(join_var %in% colnames(df))
   stopifnot(!"relationship" %in% colnames(df))
   
-  df <- df %>% 
+  df <- df |> 
     inner_join(mapping, by = join_var, relationship = "many-to-many")
   
   # Conversion logic in pieces, according to the relationship between the categories
   
   # One-to-one is simple, no need to do anything
-  df_one_to_one <- filter(df, relationship == "one-to-one") %>% 
+  df_one_to_one <- filter(df, relationship == "one-to-one") |> 
     select(all_of(c("fingreen_industry_code", id_vars, vars_to_transform)))
   
   # Disaggregation and inheritance is also simple, the new child categories already got the value of the parent category
@@ -277,10 +294,10 @@ convert_data_from_euklems_to_fingreen_industry <- function(
     df,
     relationship == "disaggregation" |
       (relationship == "recomposition" & recomposition_method == "disaggregation")
-  ) %>% 
+  ) |> 
     select(all_of(c("fingreen_industry_code", id_vars, vars_to_transform)))
   
-  df_inherited <- filter(df, relationship == "recomposition" & recomposition_method == "inherit") %>% 
+  df_inherited <- filter(df, relationship == "recomposition" & recomposition_method == "inherit") |> 
     select(all_of(c("fingreen_industry_code", id_vars, vars_to_transform)))
   
   # Aggregation is straightforward, use given aggregation function on the child categories under the new parent
@@ -288,14 +305,14 @@ convert_data_from_euklems_to_fingreen_industry <- function(
     df,
     relationship == "aggregation" |
       (relationship == "recomposition" & recomposition_method == "aggregation")
-  ) %>% 
-    group_by(across(all_of(c("fingreen_industry_code", id_vars)))) %>% 
+  ) |> 
+    group_by(across(all_of(c("fingreen_industry_code", id_vars)))) |> 
     summarise(across(all_of(vars_to_transform), .fns = aggregation_function), .groups = "drop")
   
   # One last thing is averaging, for categories which are partially overlapping
   
-  df_averaged <- filter(df, relationship == "recomposition" & recomposition_method == "average") %>% 
-    group_by(across(all_of(c("fingreen_industry_code", id_vars)))) %>% 
+  df_averaged <- filter(df, relationship == "recomposition" & recomposition_method == "average") |> 
+    group_by(across(all_of(c("fingreen_industry_code", id_vars)))) |> 
     summarise(across(all_of(vars_to_transform), .fns = mean), .groups = "drop")
   
   res <- bind_rows(
