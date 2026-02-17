@@ -1,3 +1,10 @@
+# We need wealth distribution between workers of each skill and capitalists.
+# From statfin we get wealth by "skill" (education) and from World
+# Inequality Database (WID) we get wealth share of capitalists.
+# To get the final shares, we allocate the capitalist wealth from
+# all skill classes equally. Additionally, we get national wealth per adult
+# from WID.
+
 # libraries ---------------------------------------------------------------
 
 library(dplyr)
