@@ -21,6 +21,7 @@ check_required_package_installs <- function(){
   is_installed("htmlwidgets")
   is_installed("mipfp")
   is_installed("config")
+  is_installed("wid-r-tool") # github world-inequality-database/wid-r-tool
 }
 
 check_required_package_installs()
