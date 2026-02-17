@@ -40,7 +40,7 @@ capitalist_wealth_share <- wid::download_wid(
   include_extrapolations = FALSE
 )
 
-per_adult_wealth <- wid::download_wid(
+per_adult_wealth_last_year_price <- wid::download_wid(
   indicators = c("anweal"), # a = average, nweal = national wealth
   area = geo,
   year = base_year,
@@ -89,6 +89,16 @@ wealth_by_skill_and_capitalists <- wealth_share_by_skill |>
   mutate(skill_level = factor(skill_level, levels = c("low", "mid", "high", "capitalist"))) |> 
   arrange(skill_level)
 
+# WID is "updated around July" and uses the previous years price, but don't offer a way to query the year.
+# So do some inference and output a message to the user to verify the year.
+current_month <- Sys.Date() |> strftime(format = "%m") |> as.integer()
+current_date_is_before_july <- current_month < 7L
+current_year <- Sys.Date() |> strftime(format = "%Y") |> as.integer()
+wid_year <- ifelse(current_date_is_before_july, current_year - 2L, current_year - 1L)
+catn(wid_year, " is the inferred year for WID data. Verify this is correct by visiting https://wid.world/data/")
+per_adult_wealth_base_year_price <- per_adult_wealth_last_year_price |> 
+  mutate(value = convert_eur_value_between_years(value, from = wid_year, to = base_year))
+
 # write results ----------------------------------------------------------
 
 res_wealth_by_skill_and_capitalists <- wealth_by_skill_and_capitalists |> 
@@ -99,7 +109,7 @@ writexl::write_xlsx(
   path = sprintf("%swealth-share-by-skill-and-capitalists-%s-%s.xlsx", results_dir, tolower(geo), base_year)
 )
 
-res_national_wealth_per_adult <- per_adult_wealth |> 
+res_national_wealth_per_adult <- per_adult_wealth_base_year_price |> 
   select(national_wealth_per_adult = value)
 
 writexl::write_xlsx(
