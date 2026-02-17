@@ -7,21 +7,21 @@ is_installed <- function(pkg) {
 }
 
 check_required_package_installs <- function(){
-  is_installed("dplyr")
-  is_installed("readxl")
-  is_installed("eurostat")
-  is_installed("tidyr")
-  is_installed("ggplot2")
-  is_installed("pxweb")
-  is_installed("data.table")
-  is_installed("broom")
-  is_installed("stringi")
-  is_installed("plotly")
-  is_installed("writexl")
-  is_installed("htmlwidgets")
-  is_installed("mipfp")
-  is_installed("config")
-  is_installed("wid-r-tool") # github world-inequality-database/wid-r-tool
+  stopifnot(is_installed("dplyr"))
+  stopifnot(is_installed("readxl"))
+  stopifnot(is_installed("eurostat"))
+  stopifnot(is_installed("tidyr"))
+  stopifnot(is_installed("ggplot2"))
+  stopifnot(is_installed("pxweb"))
+  stopifnot(is_installed("data.table"))
+  stopifnot(is_installed("broom"))
+  stopifnot(is_installed("stringi"))
+  stopifnot(is_installed("plotly"))
+  stopifnot(is_installed("writexl"))
+  stopifnot(is_installed("htmlwidgets"))
+  stopifnot(is_installed("mipfp"))
+  stopifnot(is_installed("config"))
+  stopifnot(is_installed("wid")) # github world-inequality-database/wid-r-tool
 }
 
 check_required_package_installs()
