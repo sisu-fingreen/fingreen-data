@@ -281,7 +281,13 @@ saveWorkbook(wb, file = export_name, overwrite = TRUE)
 col_totals <- as.numeric(Col_total_for_RAS$HH_d_CP)
 
 
-#NACE to COICOP code 
+
+
+
+
+
+
+#NACE to COICOP code #<---------------------------- NOT UPDATED 
 
 #Choose sheet 
 data_sheet <- "NACE to COICOP" #### <-- CHANGE THE TEXT IN QUOTES (also make sure the sheet order is correct)
