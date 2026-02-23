@@ -268,7 +268,7 @@ convert_data_from_euklems_to_fingreen_industry <- function(
 ){
   
   catn(
-    "Warning. Converting data from EUKLEMS to fingreen industry categorization will",
+    "Warning. Converting data from EUKLEMS to fingreen industry categorization will ",
     "mess with the totals over industry categories, since the mapping is many-to-many. ",
     "Also, disaggregated categories inherit total values from their parent categories. Use only with intention."
   )
