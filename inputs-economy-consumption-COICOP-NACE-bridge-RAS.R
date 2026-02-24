@@ -69,6 +69,12 @@ NACE_map <- read_xlsx(data_file, sheet = "NACE_map")
 # eurostat_to_fingreen_industry_use_map <- readxl::read_xlsx("source-data/mappings/eurostat-io-industry-to-fingreen-industry-map.xlsx", sheet = "use")
 
 
+# Assign row and col totals from input data
+row_totals <- as.numeric(Row_total_for_RAS$HH_Fd_Dom)
+col_totals <- as.numeric(Col_total_for_RAS$HH_d_CP)
+
+
+
 # transform bridge structure ----------------------------------------------
 
 # reshape CP (COICOP) columns to long format
@@ -123,26 +129,45 @@ bridge_transform <- bridge_cp_transform %>%
 
 
 
-#Export table before RAS 
-writexl::write_xlsx(bridge_transform, paste0(results_dir,"COICOP-NACE-bridge_transform_values.xlsx"))
+#Export table 
+writexl::write_xlsx(bridge_transform, paste0(results_dir,"COICOP-NACE-bridge_remapped_Cazcarro.xlsx"))
 
 
-
-#Calculate shares by column 
-shares <- bridge_transform %>%
-  mutate(across(-1, ~ .x / sum(.x, na.rm = TRUE)))
-
-# Calculate column sums of shares (should all be 1)
-colsums <- shares %>%
-  summarise(across(-1, sum), .groups = "drop") %>%
-  mutate(!!names(bridge_transform)[1] := "Colsums")
-
-# Combine
-bridge_transform_shares <- bind_rows(shares, colsums)
+# #Calculate shares by column 
+# bridge_col_shares <- bridge_transform %>%
+#   mutate(across(-1, ~ .x / sum(.x, na.rm = TRUE)))
 
 
-#Export table before RAS 
-writexl::write_xlsx(bridge_transform_shares, paste0(results_dir,"COICOP-NACE-bridge_transform_shares.xlsx"))
+#Calculate shares by row
+bridge_row_shares <- bridge_transform %>%
+  #For all except first row, divide each row's values by that row's total
+  mutate(across(-1, ~ .x / rowSums(across(-1), na.rm = TRUE))) %>% 
+  #Replace all NaN with 0
+  mutate(across(-1, ~ replace(.x, is.nan(.x), 0)))
+
+#Allocate all fd of industry MN_72 to the last coicop category
+bridge_row_shares[32, ncol(bridge_row_shares)] <- 1
+
+
+#Export table 
+# writexl::write_xlsx(bridge_row_shares, paste0(results_dir,"COICOP-NACE-bridge_Cazcarro_row_shares.xlsx"))
+
+
+#Multiply shares by row targets to allocate the Finnish HH fd to each COICOP according the the cell shares 
+bridge_row_fd <- bridge_row_shares %>%
+  mutate(across(-1, ~ .x * row_totals))  
+
+
+# # Calculate column sums of shares (should all be 1)
+# colsums <- bridge_row_shares %>%
+#   summarise(across(-1, sum), .groups = "drop") %>%
+#   mutate(!!names(bridge_row_shares)[1] := "Colsums")
+# 
+# # Combine
+# bridge_transform_shares <- bind_rows(bridge_row_shares, colsums)
+# 
+# #Export table 
+# writexl::write_xlsx(bridge_transform_shares, paste0(results_dir,"COICOP-NACE-bridge_transform_shares.xlsx"))
 
 
 
@@ -166,13 +191,9 @@ writexl::write_xlsx(bridge_transform_shares, paste0(results_dir,"COICOP-NACE-bri
 # # column totals as a numeric vector
 # col_totals <- colSums(as.matrix(bridge_transform[, -1]), na.rm = TRUE)
 
-# Assign row and col totals from input data
-row_totals <- as.numeric(Row_total_for_RAS$HH_Fd_Dom)
-col_totals <- as.numeric(Col_total_for_RAS$HH_d_CP)
-
 
 # str(col_totals)
-matrix <- bridge_transform %>%
+matrix <- bridge_row_fd %>%
   dplyr::select(-NACE_code) 
 
 # Check if dimensions match
