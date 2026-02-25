@@ -49,8 +49,3 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
-# Graphs and results folders
-graphs/
-results/
-source-data/
-
