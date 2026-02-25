@@ -240,7 +240,9 @@ convert_eur_value_between_years <- function(x, from, to){
       summarise(conversion_factor = first(pisteluku) / last(pisteluku)) |> 
       pull(conversion_factor)
     
-    return(conversion_factor)
+    res <- if_else(year_pair[1] >= year_pair[2], conversion_factor, 1 / conversion_factor)
+    
+    return(res)
   }
   
   conversion_factors <- lapply(year_pairs_list, get_conversion_factor_for_year_pair) |> unlist()
