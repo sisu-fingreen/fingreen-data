@@ -29,10 +29,10 @@ library(writexl)
 setwd("C:/GIT_ROOT/fingreen-data/")
 working_directory <- getwd()
 
-results_dir <- paste0(working_directory, "/results/male-share-trends/")
+results_dir <- paste0(working_directory, "/results/labour/")
 
 #load data
-male_shares <- readxl::read_xlsx("source-data/inputs-economy/male-shares/Male-share-by-Skill-2010_2022-(KUN-VAL-YKS).xlsx") #, sheet = "nama"
+male_shares <- readxl::read_xlsx("source-data/inputs-economy/labour/Male-share-by-Skill-2010_2022-(KUN-VAL-YKS).xlsx") #, sheet = "nama"
 
 
 #fit a separate linear regression of male_share on Year for each Code–Skill group and returns the estimated slope. 
