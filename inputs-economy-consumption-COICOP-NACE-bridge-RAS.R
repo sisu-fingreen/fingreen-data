@@ -32,7 +32,7 @@ results_dir <- paste0(working_directory, "/results/ras-coicop-nace-bridge/")
 #create_dir_if_not_exists(results_dir, "results")
 
 # data file name
-data_dir <- paste0(working_directory, "/source-data/inputs-economy/ras-coicop-nace-bridge/")
+data_dir <- paste0(working_directory, "/source-data/inputs-economy/consumption/")
 data_file <- paste0(data_dir, "COICOP-NACE input from Cazcarro et al 2022 Annex 1",".xlsx") 
 
 # Load data -------------------------------------------------------------
@@ -57,10 +57,6 @@ bridge_cp_transform <- orig_bridge %>%
     dplyr::filter(coicop_map),
     by = "CP_48",
     relationship = "many-to-many"
-  ) %>%
-  # define target COICOP code with fallback
-  dplyr::mutate(
-    CP_16 = dplyr::coalesce(CP_16, CP_48)
   ) %>%
   # aggregate values to CP_16 level by industry
   dplyr::group_by(CPA, CP_16) %>%
