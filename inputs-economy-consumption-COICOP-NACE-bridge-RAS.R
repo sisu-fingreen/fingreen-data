@@ -26,7 +26,7 @@ source("fingreen-r-utils.R")
 # directory setup ---------------------------------------------------------
 working_directory <- getwd()
 
-results_dir <- paste0(working_directory, "/results/ras-coicop-nace-bridge/")
+results_dir <- paste0(working_directory, "/results/inputs-economy/consumption/")
 
 #results_dir <- working_directory #paste0(working_directory, "/results/")
 #create_dir_if_not_exists(results_dir, "results")
@@ -80,16 +80,9 @@ bridge_transform <- bridge_cp_transform %>%
   dplyr::summarise(
     dplyr::across(
       dplyr::where(is.numeric) & !dplyr::all_of("disaggregation_coefficient"),
-      ~ sum(.x * dplyr::coalesce(disaggregation_coefficient, 1), na.rm = TRUE)
+      ~ sum(.x * dplyr::coalesce(disaggregation_coefficient, 1), na.rm = TRUE) * 1e6
     ),
-    .groups = "drop") %>%
-  dplyr::mutate(
-    dplyr::across(
-      dplyr::where(is.numeric),
-      ~ .x * 1e6
-    )
-  )
-
+    .groups = "drop")
 
 #Export table 
 writexl::write_xlsx(bridge_transform, paste0(results_dir,"COICOP-NACE-bridge_remapped_Cazcarro.xlsx"))
