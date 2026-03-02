@@ -57,7 +57,7 @@ bridge_cp_transform <- orig_bridge %>%
     dplyr::filter(coicop_map),
     by = "CP_48",
     relationship = "many-to-many"
-  ) %>%
+) %>%
   # aggregate values to CP_16 level by industry
   dplyr::group_by(CPA, CP_16) %>%
   dplyr::summarise(
@@ -75,12 +75,8 @@ bridge_transform <- bridge_cp_transform %>%
     by = "CPA",
     relationship = "many-to-many"
   ) %>%
-  # define harmonised industry code with CPA fallback
-  dplyr::mutate(
-    NACE_code = dplyr::coalesce(fingreen_industry_code, CPA)
-  ) %>%
   # aggregate rows to NACE industry level using coefficients
-  dplyr::group_by(NACE_code) %>%
+  dplyr::group_by(fingreen_industry_code) %>%
   dplyr::summarise(
     dplyr::across(
       dplyr::where(is.numeric) & !dplyr::all_of("disaggregation_coefficient"),
@@ -160,7 +156,7 @@ bridge_row_fd <- bridge_row_shares %>%
 
 # str(col_totals)
 matrix <- bridge_row_fd %>%
-  dplyr::select(-NACE_code) 
+  dplyr::select(-fingreen_industry_code) 
 
 # Check if dimensions match
 if (length(row_totals) != nrow(matrix) || length(col_totals) != ncol(matrix)) {
@@ -239,13 +235,13 @@ balanced_matrix_shares_export <- rbind(balanced_matrix_shares, share_totals)
 
 #Add Industry information back in 
 balanced_matrix_export <- data.frame(
-  NACE_code = c(bridge_transform$NACE_code, "Colsums"),
+  fingreen_industry_code = c(bridge_transform$fingreen_industry_code, "Colsums"),
   balanced_matrix_export,
   check.names = FALSE
 )
 
 balanced_matrix_shares_export <- data.frame(
-  NACE_code = c(bridge_transform$NACE_code, "Colsums"),
+  fingreen_industry_code = c(bridge_transform$fingreen_industry_code, "Colsums"),
   balanced_matrix_shares_export,
   check.names = FALSE
 )
