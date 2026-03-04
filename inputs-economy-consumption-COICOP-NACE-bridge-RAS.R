@@ -87,7 +87,7 @@ bridge_transform <- bridge_cp_transform %>%
     .groups = "drop")
 
 #Export table 
-writexl::write_xlsx(bridge_transform, paste0(results_dir,"COICOP-NACE-bridge_remapped_Cazcarro.xlsx"))
+writexl::write_xlsx(bridge_transform, paste0(results_dir,"coicop-nace-bridge-remapped-cazcarro.xlsx"))
 
 # #Calculate shares by column 
 # bridge_col_shares <- bridge_transform %>%
@@ -242,6 +242,7 @@ catn(
   "."
 )
 
+# results ----------------------------------------------------------------
 
 #Calculate shares by column 
 balanced_matrix_shares <- sweep(balanced_matrix, 2, colSums(balanced_matrix), "/")
@@ -267,11 +268,10 @@ balanced_matrix_shares_export <- data.frame(
   check.names = FALSE
 )
 
-
 #Export  result 
-export_name <- paste0(results_dir,"COICOP-NACE RAS balanced bridge matrix.xlsx")
+export_path <- paste0(results_dir,"coicop-nace-ras-balanced-bridge-matrix.xlsx")
 export_list <- list(
   "Balanced Matrix Shares" = balanced_matrix_shares_export,
   "Balanced Matrix Values" = balanced_matrix_export
 )
-writexl::write_xlsx(export_list, path = export_name)
+writexl::write_xlsx(export_list, path = export_path)
