@@ -164,12 +164,74 @@ expenditure_by_fingreen_coicop <- expenditure_by_coicop |>
 
 col_totals <- expenditure_by_fingreen_coicop$expenditure
 
-row_totals_unscaled <- rowSums(select(bridge_transform, CP01:CP122_127))
+hh_fd_pp <- eurostat::get_eurostat(
+  "naio_10_cp16",
+  time_format = "num",
+  filters = list(
+    geo = geo,
+    time = base_year,
+    ind_use = "P3_S14",
+    unit = "MIO_EUR"
+  )
+) |> 
+  mutate(
+    year = as.integer(time)
+  )
+
+eurostat_industry_to_fingreen_industry_map <- readxl::read_xlsx(
+  "source-data/mappings/eurostat-io-industry-to-fingreen-industry-map.xlsx",
+  sheet = "ava"
+)
+
+# check that all industries in the mapping get a match from the data
+fd_mapping_has_misses <- hh_fd_pp |>
+  mutate(eurostat_industry_code = substring(prd_ava, 5, 10)) |> 
+  right_join(
+    filter(eurostat_industry_to_fingreen_industry_map, relationship != "extra"),
+    by = "eurostat_industry_code"
+  ) |> 
+  pull(geo) |> 
+  anyNA()
+
+if(fd_mapping_has_misses){
+  stop("Final demand data (hh_fd_pp) was not mapped correctly, check the mapping")
+}
+
+hh_fd_pp_by_fingreen_industry <- hh_fd_pp |>
+  mutate(eurostat_industry_code = substring(prd_ava, 5, 10)) |> 
+  inner_join(
+    filter(eurostat_industry_to_fingreen_industry_map, relationship != "extra"),
+    by = "eurostat_industry_code"
+  ) |> 
+  group_by(fingreen_industry_code) |> 
+  summarise(hh_fd_pp = 1e6 * sum(values * coalesce(disaggregation_coefficient, 1), na.rm = T))
+
+row_totals_unscaled <- hh_fd_pp_by_fingreen_industry$hh_fd_pp
 
 # scale the row totals to match the col totals, as was done by Pisa team
 # The difference is small, so it is not too significant which one we scale
 
 row_totals <- row_totals_unscaled * sum(col_totals) / sum(row_totals)
+
+# Prepare data for RAS ----------------------------------------------
+
+#Multiply shares by row targets to allocate the Finnish HH fd to each COICOP according the the cell shares 
+bridge_row_fd <- bridge_row_shares %>%
+  mutate(across(-fingreen_industry_code, ~ .x * row_totals))
+
+matrix_to_adjust <- bridge_row_fd %>%
+  dplyr::select(-fingreen_industry_code) |> 
+  as.matrix()
+
+# Check if dimensions match
+if (length(row_totals) != nrow(matrix_to_adjust) || length(col_totals) != ncol(matrix_to_adjust)) {
+  stop("Mismatch between the dimensions of the matrix and the target margins.")
+} else {catn("Bridge matrix dimensions correct.")}
+
+# Check for negative values
+if (any(matrix_to_adjust < 0) || any(row_totals < 0) || any(col_totals < 0)) {
+  stop("Negative values found. The RAS method requires non-negative data.")
+} else {catn("Success - no negative values found")}
 
 # Perform RAS ----------------------------------------------
 
@@ -185,11 +247,11 @@ row_totals <- row_totals_unscaled * sum(col_totals) / sum(row_totals)
 # Ipfp(seed, target.list, target.data, print = FALSE, iter = 1000, tol = 1e-10,
 #      tol.margins = 1e-10, na.target = FALSE)
 
-result <- Ipfp(matrix, list(1,2), list(row_totals, col_totals))
+ras_result <- Ipfp(matrix_to_adjust[!zeros, ], list(1,2), list(row_totals[!zeros], col_totals), iter = 1e4, tol = 1e-7)
 # warnings()
 
 #Extract the balanced matrix 
-balanced_matrix <- result$x.hat
+balanced_matrix <- ras_result$x.hat
 
 
 #Export the balanced matrix before share calculations  
