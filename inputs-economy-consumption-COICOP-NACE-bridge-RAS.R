@@ -104,34 +104,6 @@ bridge_row_shares <- bridge_transform %>%
 #Allocate all fd of industry MN_72 to the last coicop category
 bridge_row_shares[bridge_row_shares$fingreen_industry_code == "MN_72", "CP122_127"] <- 1
 
-#Export table 
-# writexl::write_xlsx(bridge_row_shares, paste0(results_dir,"COICOP-NACE-bridge_Cazcarro_row_shares.xlsx"))
-
-
-# # Calculate column sums of shares (should all be 1)
-# colsums <- bridge_row_shares %>%
-#   summarise(across(-1, sum), .groups = "drop") %>%
-#   mutate(!!names(bridge_row_shares)[1] := "Colsums")
-# 
-# # Combine
-# bridge_transform_shares <- bind_rows(bridge_row_shares, colsums)
-# 
-# #Export table 
-# writexl::write_xlsx(bridge_transform_shares, paste0(results_dir,"COICOP-NACE-bridge_transform_shares.xlsx"))
-
-
-
-#Check values aggregated correctly 
-
-# orig_bridge |>
-#   dplyr::filter(CPA == "CPA_C13-15") |>
-#   dplyr::select(CP031, CP032)
-# 
-# bridge_cp_transform |>
-#   dplyr::filter(CPA == "CPA_C13-15") |>
-#   dplyr::select(CP03)
-
-
 # targets for RAS --------------------------------------------------------
 
 expenditure_by_coicop <- eurostat::get_eurostat(
@@ -211,15 +183,11 @@ row_totals_unscaled <- hh_fd_pp_by_fingreen_industry$hh_fd_pp
 # scale the row totals to match the col totals, as was done by Pisa team
 # The difference is small, so it is not too significant which one we scale
 
-row_totals <- row_totals_unscaled * sum(col_totals) / sum(row_totals)
+row_totals <- row_totals_unscaled * sum(col_totals) / sum(row_totals_unscaled)
 
 # Prepare data for RAS ----------------------------------------------
 
-#Multiply shares by row targets to allocate the Finnish HH fd to each COICOP according the the cell shares 
-bridge_row_fd <- bridge_row_shares %>%
-  mutate(across(-fingreen_industry_code, ~ .x * row_totals))
-
-matrix_to_adjust <- bridge_row_fd %>%
+matrix_to_adjust <- bridge_transform %>%
   dplyr::select(-fingreen_industry_code) |> 
   as.matrix()
 
@@ -247,42 +215,32 @@ if (any(matrix_to_adjust < 0) || any(row_totals < 0) || any(col_totals < 0)) {
 # Ipfp(seed, target.list, target.data, print = FALSE, iter = 1000, tol = 1e-10,
 #      tol.margins = 1e-10, na.target = FALSE)
 
-ras_result <- Ipfp(matrix_to_adjust[!zeros, ], list(1,2), list(row_totals[!zeros], col_totals), iter = 1e4, tol = 1e-7)
-# warnings()
+convergence_criterion <- 1e-8
+ras_result <- Ipfp(matrix_to_adjust, list(1,2), list(row_totals, col_totals), iter = 1e4, tol = convergence_criterion)
 
 #Extract the balanced matrix 
 balanced_matrix <- ras_result$x.hat
 
-
 #Export the balanced matrix before share calculations  
 writexl::write_xlsx(balanced_matrix, paste0(results_dir,"COICOP-NACE-bridge-balanced.xlsx"))
 
-
-
-#Check result contents 
-str(result)
-
-#Save relevant information 
-iterations <- length(result$evol.stp.crit) #Number of iterations taken to converge
-error_margins <- result$error.margins #maximum absolute differences between the computed margins and the target margins for each dimension
-cat("The algorithm converged when the maximum absolute deviation was less than approximately",error_margins[1])
+iterations <- length(ras_result$evol.stp.crit) #Number of iterations taken to converge
+error_margins <- ras_result$error.margins #maximum absolute differences between the computed margins and the target margins for each dimension
+catn("The algorithm converged when the maximum absolute deviation was less than approximately ",error_margins[1])
 max_deviation <- max(error_margins)
 
 #Define variables for cat 
-tol <- "1e-5"  # Default convergence tolerance
 max_deviation_formatted <- formatC(max_deviation, format = "e", digits = 2)
 
-
-# Print the statement using cat()
-cat(
-  "The IPFP was configured to balance row and column margins (list(1,2)) using a convergence tolerance of",
-  tol, ". The algorithm terminated after", iterations,
-  "iterations, with a maximum of 1,000 iterations allowed. The resulting matrix reproduced the specified margins with a maximum absolute deviation of",
-  max_deviation_formatted, "."
-) # Check for accuracy! 
-
-
-
+catn(
+  "The IPFP was configured to balance row and column margins (list(1,2)) using a convergence tolerance of ",
+  convergence_criterion,
+  ". The algorithm terminated after ",
+  iterations,
+  " iterations. The resulting matrix reproduced the specified margins with a maximum absolute deviation of ",
+  max_deviation_formatted,
+  "."
+)
 
 
 #Calculate shares by column 
@@ -296,7 +254,7 @@ share_totals <- as.data.frame(t(colSums(balanced_matrix_shares, na.rm = TRUE)))
 balanced_matrix_shares_export <- rbind(balanced_matrix_shares, share_totals)
 
 
-#Add Industry information back in 
+# Add Industry information back in 
 balanced_matrix_export <- data.frame(
   fingreen_industry_code = c(bridge_transform$fingreen_industry_code, "Colsums"),
   balanced_matrix_export,
