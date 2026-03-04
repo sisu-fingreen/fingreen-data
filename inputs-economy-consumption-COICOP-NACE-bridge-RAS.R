@@ -35,16 +35,18 @@ results_dir <- paste0(working_directory, "/results/inputs-economy/consumption/")
 data_dir <- paste0(working_directory, "/source-data/inputs-economy/consumption/")
 data_file <- paste0(data_dir, "COICOP-NACE input from Cazcarro et al 2022 Annex 1",".xlsx") 
 
+# parameters ---------------------------------------------------------------
+global_params <- config::get(file = "global-params.yml")
+
+base_year <- global_params$base_year
+geo <- global_params$geo
+
 # Load data -------------------------------------------------------------
 orig_bridge <- read_xlsx(data_file, sheet = "Original_data")
 row_total_for_ras <- read_xlsx(data_file, sheet = "Row_total_for_RAS")
 col_total_for_ras <- read_xlsx(data_file, sheet = "Col_total_for_RAS")
 coicop_map <- read_xlsx(data_file, sheet = "COICOP_map")
 nace_map <- read_xlsx(data_file, sheet = "NACE_map")
-
-# Assign row and col totals from input data
-row_totals <- as.numeric(row_total_for_ras$HH_Fd_Dom)
-col_totals <- as.numeric(col_total_for_ras$HH_d_CP)
 
 # transform bridge structure ----------------------------------------------
 
@@ -87,7 +89,6 @@ bridge_transform <- bridge_cp_transform %>%
 #Export table 
 writexl::write_xlsx(bridge_transform, paste0(results_dir,"COICOP-NACE-bridge_remapped_Cazcarro.xlsx"))
 
-
 # #Calculate shares by column 
 # bridge_col_shares <- bridge_transform %>%
 #   mutate(across(-1, ~ .x / sum(.x, na.rm = TRUE)))
@@ -95,22 +96,16 @@ writexl::write_xlsx(bridge_transform, paste0(results_dir,"COICOP-NACE-bridge_rem
 
 #Calculate shares by row
 bridge_row_shares <- bridge_transform %>%
-  #For all except first row, divide each row's values by that row's total
-  mutate(across(-1, ~ .x / rowSums(across(-1), na.rm = TRUE))) %>% 
+  #For all except industry code column, divide each row's values by that row's total
+  mutate(across(-fingreen_industry_code, ~ .x / rowSums(across(-fingreen_industry_code), na.rm = TRUE))) %>% 
   #Replace all NaN with 0
-  mutate(across(-1, ~ replace(.x, is.nan(.x), 0)))
+  mutate(across(-fingreen_industry_code, ~ replace(.x, is.nan(.x), 0)))
 
 #Allocate all fd of industry MN_72 to the last coicop category
-bridge_row_shares[32, ncol(bridge_row_shares)] <- 1
-
+bridge_row_shares[bridge_row_shares$fingreen_industry_code == "MN_72", "CP122_127"] <- 1
 
 #Export table 
 # writexl::write_xlsx(bridge_row_shares, paste0(results_dir,"COICOP-NACE-bridge_Cazcarro_row_shares.xlsx"))
-
-
-#Multiply shares by row targets to allocate the Finnish HH fd to each COICOP according the the cell shares 
-bridge_row_fd <- bridge_row_shares %>%
-  mutate(across(-1, ~ .x * row_totals))  
 
 
 # # Calculate column sums of shares (should all be 1)
@@ -137,31 +132,44 @@ bridge_row_fd <- bridge_row_shares %>%
 #   dplyr::select(CP03)
 
 
+# targets for RAS --------------------------------------------------------
 
-# Prepare data for RAS ----------------------------------------------
+expenditure_by_coicop <- eurostat::get_eurostat(
+  "nama_10_co3_p3",
+  time_format = "num",
+  filters = list(
+    geo = geo,
+    time = base_year,
+    unit = "CP_MEUR" # Current prices millions of euros
+  )
+) |> 
+  mutate(
+    year = as.integer(time)
+  )
 
-# Calculate row and col totals from data
-# # row totals as a numeric vector
-# row_totals <- rowSums(as.matrix(bridge_transform[, -1]), na.rm = TRUE)
-# # column totals as a numeric vector
-# col_totals <- colSums(as.matrix(bridge_transform[, -1]), na.rm = TRUE)
+# These are used to choose convenient eurostat data
+simple_coicop_categories <- c("CP01", "CP02", "CP03", "CP05", "CP06", "CP08", "CP09", "CP10", "CP11")
 
+split_coicop_categories <- c("CP041_043", "CP044", "CP045", "CP071_072", "CP073", "CP121", "CP122_127")
+  
+expenditure_by_fingreen_coicop <- expenditure_by_coicop |> 
+  mutate(fingreen_coicop = eurostat_coicop_to_fingreen_coicop(coicop)) |> 
+  # choose the right level of coicop aggregation
+  filter(
+    (fingreen_coicop %in% simple_coicop_categories & stringi::stri_length(coicop) == 4L) |
+      (fingreen_coicop %in% split_coicop_categories & stringi::stri_length(coicop) == 5L)
+  ) %>% 
+  group_by(geo, year, fingreen_coicop) |> 
+  summarise(expenditure = sum(values, na.rm = T) * 1e6, .groups = "drop")
 
-# str(col_totals)
-matrix <- bridge_row_fd %>%
-  dplyr::select(-fingreen_industry_code) 
+col_totals <- expenditure_by_fingreen_coicop$expenditure
 
-# Check if dimensions match
-if (length(row_totals) != nrow(matrix) || length(col_totals) != ncol(matrix)) {
-  stop("Mismatch between the dimensions of the matrix and the target margins.")
-} else {"No mismatch found"}
+row_totals_unscaled <- rowSums(select(bridge_transform, CP01:CP122_127))
 
-# Check for negative values
-if (any(matrix < 0) || any(row_totals < 0) || any(col_totals < 0)) {
-  stop("Negative values found. The RAS method requires non-negative data.")
-} else {"No negative values found"}
+# scale the row totals to match the col totals, as was done by Pisa team
+# The difference is small, so it is not too significant which one we scale
 
-
+row_totals <- row_totals_unscaled * sum(col_totals) / sum(row_totals)
 
 # Perform RAS ----------------------------------------------
 
