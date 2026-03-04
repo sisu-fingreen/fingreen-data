@@ -27,13 +27,9 @@ source("fingreen-r-utils.R")
 working_directory <- getwd()
 
 results_dir <- paste0(working_directory, "/results/inputs-economy/consumption/")
+create_dir_if_not_exists(results_dir, "results")
 
-#results_dir <- working_directory #paste0(working_directory, "/results/")
-#create_dir_if_not_exists(results_dir, "results")
-
-# data file name
-data_dir <- paste0(working_directory, "/source-data/inputs-economy/consumption/")
-data_file <- paste0(data_dir, "COICOP-NACE input from Cazcarro et al 2022 Annex 1",".xlsx") 
+data_file <- "source-data/inputs-economy/consumption/cazcarro-et-al-2022-Annex_1_From_HBS_to_HFCE__COICOP__and_COICOP-CPA_pp_Contingency_tables.ods"
 
 # parameters ---------------------------------------------------------------
 global_params <- config::get(file = "global-params.yml")
@@ -42,11 +38,11 @@ base_year <- global_params$base_year
 geo <- global_params$geo
 
 # Load data -------------------------------------------------------------
-orig_bridge <- read_xlsx(data_file, sheet = "Original_data")
-row_total_for_ras <- read_xlsx(data_file, sheet = "Row_total_for_RAS")
-col_total_for_ras <- read_xlsx(data_file, sheet = "Col_total_for_RAS")
-coicop_map <- read_xlsx(data_file, sheet = "COICOP_map")
-nace_map <- read_xlsx(data_file, sheet = "NACE_map")
+orig_bridge <- readODS::read_ods(data_file, sheet = geo, range = "A1:AV65")
+names(orig_bridge)[1] <- "CPA"
+
+coicop_map <- readODS::read_ods("source-data/mappings/coicop-48-to-fingreen-coicop-map.ods", sheet = "COICOP_map")
+nace_map <- readODS::read_ods("source-data/mappings/cpa-cazcarro-to-fingreen-industry-map.ods", sheet = "NACE_map")
 
 # transform bridge structure ----------------------------------------------
 
@@ -220,9 +216,6 @@ ras_result <- Ipfp(matrix_to_adjust, list(1,2), list(row_totals, col_totals), it
 
 #Extract the balanced matrix 
 balanced_matrix <- ras_result$x.hat
-
-#Export the balanced matrix before share calculations  
-writexl::write_xlsx(balanced_matrix, paste0(results_dir,"COICOP-NACE-bridge-balanced.xlsx"))
 
 iterations <- length(ras_result$evol.stp.crit) #Number of iterations taken to converge
 error_margins <- ras_result$error.margins #maximum absolute differences between the computed margins and the target margins for each dimension
