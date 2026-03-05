@@ -35,7 +35,7 @@ capitalist_wealth_share <- wid::download_wid(
   area = geo,
   years = base_year,
   perc = "p99p100", # top 1% = capitalists
-  age = "999", # adults 20+, the best applicable category
+  age = "999", # all ages
   pop = "j", # j = equal-split-adults, wealth equally between spouses
   include_extrapolations = FALSE
 )
@@ -45,7 +45,7 @@ per_adult_wealth_last_year_price <- wid::download_wid(
   area = geo,
   year = base_year,
   perc = "p0p100",
-  age = "992",
+  age = "992", # adults 20+, the best applicable category
   pop = "i", # individuals
   include_extrapolations = FALSE
 )
