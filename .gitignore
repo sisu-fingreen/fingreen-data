@@ -49,3 +49,15 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
+# data used by targets package
+_targets/ 
+
+# certain data does not need to be tracked by git
+source-data/euklems/
+source-data/temp/
+results/
+source-data/wiod/
+source-data/tsm/
+
+# LibreOffice lock files
+*~lock.*
