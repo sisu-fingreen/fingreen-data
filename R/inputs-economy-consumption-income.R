@@ -2,16 +2,6 @@ create_data_inputs_economy_consumption_income <- function() {
 
   # dependencies: none
   
-  # directory setup ---------------------------------------------------------
-
-  working_directory <- getwd()
-
-  graphs_dir <- paste0(working_directory, "/graphs/inputs-economy/consumption")
-  create_dir_if_not_exists(graphs_dir, "graphs")
-
-  results_dir <- paste0(working_directory, "/results/inputs-economy/consumption")
-  create_dir_if_not_exists(results_dir, "results")
-
   # libraries ---------------------------------------------------------------
 
   library(dplyr)
@@ -31,6 +21,16 @@ create_data_inputs_economy_consumption_income <- function() {
   base_year = 2010L
   geo = "FI"
 
+  # directory setup ---------------------------------------------------------
+
+  working_directory <- getwd()
+
+  graphs_dir <- paste0(working_directory, "/graphs/inputs-economy/consumption")
+  create_dir_if_not_exists(graphs_dir, "graphs")
+
+  results_dir <- paste0(working_directory, "/results/inputs-economy/consumption")
+  create_dir_if_not_exists(results_dir, "results")
+
   # source data --------------------------------------------------------------
 
   # We need to get the data from Eurostat, because there the income quantiles have
@@ -47,7 +47,7 @@ create_data_inputs_economy_consumption_income <- function() {
       geo = geo,
       time = base_year,
       quant_inc = paste0("QU", 1L:5L),
-      indic_il = "INC_DISP", # INC_DISP = disposable income
+      indic_ewb = "DI", # DI = disposable income
       quant_expn = "TOTAL",
       quant_wlth = "TOTAL",
       unit = "PC"

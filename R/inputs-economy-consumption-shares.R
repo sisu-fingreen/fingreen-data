@@ -5,7 +5,7 @@ library(eurostat)
 library(pxweb)
 library(ggplot2)
 
-source("fingreen-r-utils.R")
+source("R/fingreen-r-utils.R")
 source("R/get-number-of-households.R")
 
 # needed but not loaded to the namespace

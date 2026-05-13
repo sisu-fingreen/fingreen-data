@@ -65,6 +65,7 @@ tar_source(
   files = c(
     "R/fingreen-r-utils.R",
     "R/inputs-economy-beta-elasticities.R",
+    "R/inputs-economy-consumption-coicop-nace-bridge-ras.R",
     "R/inputs-economy-consumption-income.R"
   )
 )
@@ -74,6 +75,11 @@ list(
   tar_target(
     name = inputs_economy_beta_elasticities,
     command = create_data_inputs_economy_beta_elasticities(),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_economy_consumption_coicop_nace_bridge,
+    command = create_data_inputs_economy_consumption_coicop_nace_bridge(),
     format = "file"
   ),
   tar_target(
