@@ -22,6 +22,7 @@ library(mipfp)
 library(readxl)
 
 source("fingreen-r-utils.R")
+source("R/bp-pp-convert.R")
 
 # directory setup ---------------------------------------------------------
 working_directory <- getwd()
@@ -42,7 +43,7 @@ orig_bridge <- readODS::read_ods(data_file, sheet = geo, range = "A1:AV65")
 names(orig_bridge)[1] <- "CPA"
 
 coicop_map <- readODS::read_ods("source-data/mappings/coicop-48-to-fingreen-coicop-map.ods", sheet = "COICOP_map")
-nace_map <- readODS::read_ods("source-data/mappings/cpa-cazcarro-to-fingreen-industry-map.ods", sheet = "NACE_map")
+cpa_map <- readODS::read_ods("source-data/mappings/cpa-cazcarro-to-fingreen-industry-map.ods", sheet = "NACE_map")
 
 # transform bridge structure ----------------------------------------------
 
@@ -69,7 +70,7 @@ bridge_cp_transform <- orig_bridge %>%
 bridge_transform <- bridge_cp_transform %>%
   # join CPA → FINGREEN industry mapping
   dplyr::inner_join(
-    dplyr::filter(nace_map),
+    dplyr::filter(cpa_map),
     by = "CPA",
     relationship = "many-to-many"
   ) %>%
@@ -132,13 +133,14 @@ expenditure_by_fingreen_coicop <- expenditure_by_coicop |>
 
 col_totals <- expenditure_by_fingreen_coicop$expenditure
 
-hh_fd_pp <- eurostat::get_eurostat(
-  "naio_10_cp16",
+hh_fd_bp <- eurostat::get_eurostat(
+  "naio_10_cp1750",
   time_format = "num",
   filters = list(
     geo = geo,
     time = base_year,
     ind_use = "P3_S14",
+    stk_flow = "TOTAL",
     unit = "MIO_EUR"
   )
 ) |> 
@@ -146,35 +148,81 @@ hh_fd_pp <- eurostat::get_eurostat(
     year = as.integer(time)
   )
 
+geo_dict_data <- readODS::read_ods(
+  "source-data/inputs-economy/consumption/cazcarro_et_al_2022_Annex_2_From_CPA_pp_to_bp_converter_tool.ods",
+  sheet = "%m",
+  skip = 11L
+)
+geo_dict <- geo_dict_data[1, ] |> as.character()
+names(geo_dict) <- colnames(geo_dict_data)
+geo_long <- geo_dict[geo]
+
+ttm_data <- readODS::read_ods(
+  "source-data/inputs-economy/consumption/cazcarro_et_al_2022_Annex_2_From_CPA_pp_to_bp_converter_tool.ods",
+  sheet = "%m",
+  skip = 12L
+) |> 
+  filter(PROD_NA != "TOTAL")
+
+ttm_margins <- ttm_data |> pull(geo_long)
+ttm_margins_positive <- if_else(ttm_margins < 0, 0, ttm_margins)
+ttm_shares <- if_else(ttm_margins < 0, -ttm_margins, 0)
+
+tls_margins <- readODS::read_ods(
+  "source-data/inputs-economy/consumption/cazcarro_et_al_2022_Annex_2_From_CPA_pp_to_bp_converter_tool.ods",
+  sheet = "%t",
+  skip = 12L
+) |> 
+  filter(PROD_NA != "TOTAL") |> 
+  pull(geo_long)
+
+cazcarro_etal_cpas <- ttm_data |> pull(PROD_NA) |> stringi::stri_trim_both()
+cazcarro_etal_cpas_as_industries <- gsub("^CPA_", "", cazcarro_etal_cpas)
+
+hh_fd_bp_selected <- hh_fd_bp |> 
+  filter(ind_ava %in% cazcarro_etal_cpas_as_industries) |> 
+  mutate(values = if_else(ind_ava == "U", 0, values))
+
+hh_fd_pp <- hh_fd_bp_selected |> 
+  pull(values) |> 
+  bp_pp_convert(
+    bp = _,
+    ttm_margins = ttm_margins_positive,
+    ttm_shares = ttm_shares,
+    tls_margins = tls_margins
+  )
+
+hh_fd_pp_df <- tibble(
+  nace_r2 = cazcarro_etal_cpas_as_industries,
+  hh_fd_pp = hh_fd_pp
+)
+
 eurostat_industry_to_fingreen_industry_map <- readxl::read_xlsx(
   "source-data/mappings/eurostat-io-industry-to-fingreen-industry-map.xlsx",
   sheet = "ava"
 )
 
+hh_fd_pp_by_fingreen_industry <- hh_fd_pp_df |> 
+  left_join(eurostat_industry_to_fingreen_industry_map, by = c("nace_r2" = "eurostat_industry_code")) |> 
+  filter(nace_r2 != "U") |> # U not needed, 0 anyway
+  group_by(fingreen_industry_code) |> 
+  summarise(hh_fd_pp = sum(hh_fd_pp * coalesce(disaggregation_coefficient, 1)))
+  
+
 # check that all industries in the mapping get a match from the data
-fd_mapping_has_misses <- hh_fd_pp |>
-  mutate(eurostat_industry_code = substring(prd_ava, 5, 10)) |> 
+fd_mapping_has_misses <- hh_fd_pp_df |>
   right_join(
     filter(eurostat_industry_to_fingreen_industry_map, relationship != "extra"),
-    by = "eurostat_industry_code"
+    by = c("nace_r2" = "eurostat_industry_code")
   ) |> 
-  pull(geo) |> 
+  pull(hh_fd_pp) |> 
   anyNA()
 
 if(fd_mapping_has_misses){
   stop("Final demand data (hh_fd_pp) was not mapped correctly, check the mapping")
 }
 
-hh_fd_pp_by_fingreen_industry <- hh_fd_pp |>
-  mutate(eurostat_industry_code = substring(prd_ava, 5, 10)) |> 
-  inner_join(
-    filter(eurostat_industry_to_fingreen_industry_map, relationship != "extra"),
-    by = "eurostat_industry_code"
-  ) |> 
-  group_by(fingreen_industry_code) |> 
-  summarise(hh_fd_pp = 1e6 * sum(values * coalesce(disaggregation_coefficient, 1), na.rm = T))
-
-row_totals_unscaled <- hh_fd_pp_by_fingreen_industry$hh_fd_pp
+row_totals_unscaled <- hh_fd_pp_by_fingreen_industry$hh_fd_pp * 1e6
 
 # scale the row totals to match the col totals, as was done by Pisa team
 # The difference is small, so it is not too significant which one we scale
@@ -211,8 +259,15 @@ if (any(matrix_to_adjust < 0) || any(row_totals < 0) || any(col_totals < 0)) {
 # Ipfp(seed, target.list, target.data, print = FALSE, iter = 1000, tol = 1e-10,
 #      tol.margins = 1e-10, na.target = FALSE)
 
-convergence_criterion <- 1e-8
+convergence_criterion <- 5e-7 # if the Ipfp is not converging, adjust convergence criterion
+
+# handle warnings as errors for the Ipfp fitting
+orig_opts <- options()
+options(warn=2) # throw error for warnings
+
 ras_result <- Ipfp(matrix_to_adjust, list(1,2), list(row_totals, col_totals), iter = 1e4, tol = convergence_criterion)
+
+options(orig_opts) # back to original options and warning behaviour
 
 #Extract the balanced matrix 
 balanced_matrix <- ras_result$x.hat
@@ -262,9 +317,9 @@ balanced_matrix_shares_export <- data.frame(
 )
 
 #Export  result 
-export_path <- paste0(results_dir,"coicop-nace-ras-balanced-bridge-matrix.xlsx")
+export_path <- paste0(results_dir,"coicop-nace-ras-balanced-bridge-matrix.ods")
 export_list <- list(
   "Balanced Matrix Shares" = balanced_matrix_shares_export,
   "Balanced Matrix Values" = balanced_matrix_export
 )
-writexl::write_xlsx(export_list, path = export_path)
+readODS::write_ods(export_list, path = export_path)
