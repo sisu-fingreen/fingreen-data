@@ -9,10 +9,76 @@
 ##
 ##  By Topi-Matti Heikkola
 ##  Email: topi-matti@heikkola.fi
-##  Updated:  2025-05-05  (y-m-d)
-##_______________________________________________________________
 
-create_data_inputs_economy_beta_elasticities <- function() {
+pull_raw_data_inputs_economy_beta_elasticities <- function() {
+
+  library(dplyr)
+
+  # These categories come straight from eurostat data
+  simple_coicop_categories <- c(
+    "CP01",
+    "CP02",
+    "CP03",
+    "CP05",
+    "CP06",
+    "CP08",
+    "CP09",
+    "CP10",
+    "CP11"
+  )
+
+  # These categories need to be aggregated from eurostat data
+  split_coicop_categories <- c(
+    "CP041_043",
+    "CP044",
+    "CP045",
+    "CP071_072",
+    "CP073",
+    "CP121",
+    "CP122_127"
+  )
+
+  # use multiple years to have enough data to analyze the changes in consumption
+  data_years <- c(2005L, 2010L, 2015L, 2020L)
+
+  expenditures <- eurostat::get_eurostat(
+    id = "hbs_str_t223",
+    filters = list(time = data_years),
+    time_format = "num",
+    stringsAsFactors = FALSE
+  )
+  
+  # hicp indicates the price development of consumption categories
+
+  hicp <- eurostat::get_eurostat(
+    id = "prc_hicp_aind",
+    filters = list(time = data_years, unit = "INX_A_AVG"), # we want annual average index
+    time_format = "num",
+    stringsAsFactors = FALSE
+  )
+
+  hicp_high_lvl <- get_eurostat(
+    id = "prc_hicp_aind",
+    filters = list(
+      time = data_years,
+      unit = "INX_A_AVG",
+      coicop = simple_coicop_categories
+    ),
+    time_format = "num",
+    stringsAsFactors = FALSE
+  )
+
+  hicp_item_weights <- get_eurostat(
+    id = "prc_hicp_inw",
+    filters = list(time = data_years),
+    time_format = "num",
+    stringsAsFactors = FALSE
+  )
+  
+
+}
+
+create_inputs_economy_beta_elasticities <- function() {
   # dependencies: none
 
   # libraries ---------------------------------------------------------------
@@ -116,12 +182,7 @@ create_data_inputs_economy_beta_elasticities <- function() {
     stringsAsFactors = FALSE
   )
 
-  hicp_item_weights <- get_eurostat(
-    id = "prc_hicp_inw",
-    filters = list(time = data_years),
-    time_format = "num",
-    stringsAsFactors = FALSE
-  ) %>%
+  hicp_item_weights <- readODS::read_ods(path = raw_data_beta_elasticities_hicp_item_weights_path) |>
     mutate(cat_weight = values / 1000) %>%
     select(-freq, -values)
 
