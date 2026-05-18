@@ -72,6 +72,19 @@ get_unique_nonmissing_values <- function(df, var){
   return(res)
 }
 
+validate_schema <- function(df, expected_schema, df_name) {
+
+  df_colnames <- colnames(df)
+  df_coltypes <- sapply(class(df))
+  df_schema <- tibble(column_name = df_colnames, column_type = df_coltypes)
+
+  if(!identical(df_schema, expected_schema)) {
+    stop(df_name, " schema differs from expected.")
+  } else {
+    return(invisible(TRUE))
+  }
+}
+
 # plotting -----------------------------------------------------------------
 
 save_plotly_plot <- function(plot, file, ...){
