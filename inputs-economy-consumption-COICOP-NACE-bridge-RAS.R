@@ -307,7 +307,7 @@ balanced_matrix_shares_export <- rbind(balanced_matrix_shares, share_totals)
 balanced_matrix_export <- data.frame(
   fingreen_industry_code = c(bridge_transform$fingreen_industry_code, "Colsums"),
   balanced_matrix_export,
-  check.names = FALS>E
+  check.names = FALSE
 )
 
 balanced_matrix_shares_export <- data.frame(
