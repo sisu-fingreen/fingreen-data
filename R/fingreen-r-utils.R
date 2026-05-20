@@ -8,6 +8,7 @@ is_installed <- function(pkg) {
 
 check_required_package_installs <- function(){
   stopifnot(is_installed("dplyr"))
+  stopifnot(is_installed("readODS"))
   stopifnot(is_installed("readxl"))
   stopifnot(is_installed("eurostat"))
   stopifnot(is_installed("tidyr"))
@@ -72,11 +73,36 @@ get_unique_nonmissing_values <- function(df, var){
   return(res)
 }
 
+put_schema <- function(df) {
+  # A helper function to output schema of a dataframe to the console.
+  # helpful for defining comparison schemas for validate_schema
+  schema <- data.frame(column_name = colnames(df), column_type = sapply(df, class))
+  cat(
+    "structure(\n",
+    "  list(\n",
+    "    column_name = c('", paste(colnames(df), collapse = "', '"), "'),\n",
+    "    column_type = c('", paste(sapply(df,class), collapse = "', '"), "')\n",
+    "  ),\n",
+    "  class = 'data.frame',\n",
+    "  row.names = c('", paste(colnames(df), collapse = "', '"), "')\n",
+    ")\n",
+    sep = ""
+  )
+  return(invisible(TRUE))
+}
+
 validate_schema <- function(df, expected_schema, df_name) {
+  # Check wether schema (ie. column names and types) of a dataframe matches what is expected
+  # This is especially helpful for checking whether eurostat have changed the schema of a
+  # dataset. Sometimes eg. the variable names might change.
+  # 
+  # df: a data frame
+  # expected_schema: dataframe with to variables - column_name and column_type
+  # df_name: character, name to report in case of failed validation
 
   df_colnames <- colnames(df)
-  df_coltypes <- sapply(class(df))
-  df_schema <- tibble(column_name = df_colnames, column_type = df_coltypes)
+  df_coltypes <- sapply(df, class)
+  df_schema <- data.frame(column_name = df_colnames, column_type = df_coltypes)
 
   if(!identical(df_schema, expected_schema)) {
     stop(df_name, " schema differs from expected.")
