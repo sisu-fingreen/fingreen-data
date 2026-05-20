@@ -13,6 +13,7 @@
 pull_raw_data_inputs_economy_beta_elasticities <- function() {
 
   library(dplyr)
+  source("R/fingreen-r-utils.R")
 
   # These categories come straight from eurostat data
   simple_coicop_categories <- c(
@@ -47,17 +48,34 @@ pull_raw_data_inputs_economy_beta_elasticities <- function() {
     time_format = "num",
     stringsAsFactors = FALSE
   )
+  expenditures_schema <- structure(
+    list(
+      column_name = c("freq", "quant_inc", "coicop", "unit", "geo", "time", "values"),
+      column_type = c("character", "character", "character", "character", "character", "numeric", "integer")
+    ),
+    class = "data.frame",
+    row.names = c("freq", "quant_inc", "coicop", "unit", "geo", "time", "values")
+  )
+  validate_schema(expenditures, expenditures_schema, "expenditures")
   
   # hicp indicates the price development of consumption categories
-
   hicp <- eurostat::get_eurostat(
     id = "prc_hicp_aind",
     filters = list(time = data_years, unit = "INX_A_AVG"), # we want annual average index
     time_format = "num",
     stringsAsFactors = FALSE
   )
+  hicp_schema <- structure(
+    list(
+      column_name = c('freq', 'unit', 'coicop', 'geo', 'time', 'values'),
+      column_type = c('character', 'character', 'character', 'character', 'numeric', 'numeric')
+    ),
+    class = 'data.frame',
+    row.names = c('freq', 'unit', 'coicop', 'geo', 'time', 'values')
+  )
+  validate_schema(hicp, hicp_schema, "hicp")
 
-  hicp_high_lvl <- get_eurostat(
+  hicp_high_lvl <- eurostat::get_eurostat(
     id = "prc_hicp_aind",
     filters = list(
       time = data_years,
@@ -67,18 +85,42 @@ pull_raw_data_inputs_economy_beta_elasticities <- function() {
     time_format = "num",
     stringsAsFactors = FALSE
   )
+  validate_schema(hicp_high_lvl, hicp_schema, "hicp_high_lvl")
 
-  hicp_item_weights <- get_eurostat(
+  hicp_item_weights <- eurostat::get_eurostat(
     id = "prc_hicp_inw",
     filters = list(time = data_years),
     time_format = "num",
     stringsAsFactors = FALSE
   )
+  hicp_item_weights_schema <- structure(
+    list(
+      column_name = c('freq', 'coicop', 'geo', 'time', 'values'),
+      column_type = c('character', 'character', 'character', 'numeric', 'numeric')
+    ),
+    class = 'data.frame',
+    row.names = c('freq', 'coicop', 'geo', 'time', 'values')
+  )
+  validate_schema(hicp_item_weights, hicp_item_weights_schema, "hicp_item_weights")
   
+  working_directory <- getwd()
+  raw_data_dir <- paste0(
+    working_directory,
+    "/raw-data/inputs-economy/beta-elasticities"
+  )
+  create_dir_if_not_exists(raw_data_dir)
 
+  datasets_to_write <- c("expenditures", "hicp", "hicp_high_lvl", "hicp_item_weights")
+  
+  output_path <- paste0(raw_data_dir, "/beta-elasticities.ods")
+  
+  # write all in one go
+  readODS::write_ods(x = mget(datasets_to_write), path = output_path)
+
+  return(output_path)
 }
 
-create_inputs_economy_beta_elasticities <- function() {
+create_inputs_economy_beta_elasticities <- function(raw_data_path) {
   # dependencies: none
 
   # libraries ---------------------------------------------------------------
@@ -142,50 +184,16 @@ create_inputs_economy_beta_elasticities <- function() {
     "CP121",
     "CP122_127"
   )
-
-  data_years <- c(2005L, 2010L, 2015L, 2020L)
-
-  expenditures_dataset_info <- search_eurostat(
-    "Structure of consumption expenditure by income quintile and COICOP consumption purpose",
-    type = "dataset"
-  )
-
-  expenditures <- get_eurostat(
-    id = expenditures_dataset_info$code[1],
-    filters = list(time = data_years),
-    time_format = "num",
-    stringsAsFactors = FALSE
-  )
-
-  # hicp indicates the price development of consumption categories
-
-  hicp_dataset_info <- search_eurostat(
-    "HICP - annual data (average index and rate of change)",
-    type = "dataset"
-  )
-
-  hicp <- get_eurostat(
-    id = hicp_dataset_info$code[1],
-    filters = list(time = data_years, unit = "INX_A_AVG"), # we want annual average index
-    time_format = "num",
-    stringsAsFactors = FALSE
-  )
-
-  hicp_high_lvl <- get_eurostat(
-    id = hicp_dataset_info$code[1],
-    filters = list(
-      time = data_years,
-      unit = "INX_A_AVG",
-      coicop = simple_coicop_categories
-    ),
-    time_format = "num",
-    stringsAsFactors = FALSE
-  )
-
-  hicp_item_weights <- readODS::read_ods(path = raw_data_beta_elasticities_hicp_item_weights_path) |>
+  
+  expenditures <- readODS::read_ods(raw_data_path, sheet = "expenditures")
+  hicp <- readODS::read_ods(raw_data_path, sheet = "hicp")
+  hicp_high_lvl <- readODS::read_ods(raw_data_path, sheet = "hicp_high_lvl")
+  hicp_item_weights <- readODS::read_ods(raw_data_path, sheet = "hicp_item_weights") |>
     mutate(cat_weight = values / 1000) %>%
     select(-freq, -values)
-
+    
+  data_years <- hicp$time |> unique() |> as.integer() |> sort()
+  
   results_italy <- read_xlsx(
     "source-data/inputs-economy/beta-elasticities/beta-elasticities-italy.xlsx"
   ) %>%

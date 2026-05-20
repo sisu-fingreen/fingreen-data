@@ -1,4 +1,70 @@
-create_data_inputs_economy_consumption_coicop_nace_bridge <- function() {
+pull_raw_data_inputs_economy_consumption_coicop_nace_bridge <- function() {
+  
+  source("R/fingreen-r-utils.R")
+  library(dplyr)
+
+  global_params <- config::get(file = "global-params.yml")
+
+  base_year <- global_params$base_year
+  geo <- global_params$geo
+
+  working_directory <- getwd()
+
+  raw_data_dir <- paste0(working_directory, "/raw-data/inputs-economy/consumption/")
+  create_dir_if_not_exists(raw_data_dir, "raw data")
+  
+  expenditure_by_coicop <- eurostat::get_eurostat(
+    "nama_10_co3_p3",
+    time_format = "num",
+    filters = list(
+      geo = geo,
+      time = base_year,
+      unit = "CP_MEUR" # Current prices millions of euros
+    )
+  )
+  expenditure_by_coicop_schema <- structure(
+    list(
+      column_name = c('freq', 'unit', 'coicop', 'geo', 'time', 'values'),
+      column_type = c('character', 'character', 'character', 'character', 'numeric', 'numeric')
+    ),
+    class = 'data.frame',
+    row.names = c('freq', 'unit', 'coicop', 'geo', 'time', 'values')
+  )
+  validate_schema(expenditure_by_coicop, expenditure_by_coicop_schema, "expenditure_by_coicop")
+  
+  hh_fd_bp <- eurostat::get_eurostat(
+    "naio_10_cp1750",
+    time_format = "num",
+    filters = list(
+      geo = geo,
+      time = base_year,
+      ind_use = "P3_S14",
+      stk_flow = "TOTAL",
+      unit = "MIO_EUR"
+    )
+  )
+  hh_fd_bp_schema <- structure(
+    list(
+      column_name = c('freq', 'unit', 'ind_ava', 'ind_use', 'stk_flow', 'geo', 'time', 'values'),
+      column_type = c('character', 'character', 'character', 'character', 'character', 'character', 'numeric', 'numeric')
+    ),
+    class = 'data.frame',
+    row.names = c('freq', 'unit', 'ind_ava', 'ind_use', 'stk_flow', 'geo', 'time', 'values')
+  )
+  validate_schema(hh_fd_bp, hh_fd_bp_schema, "hh_fd_bp")
+  
+  datasets_to_write <- c("expenditure_by_coicop", "hh_fd_bp")
+  
+  output_path <- paste0(raw_data_dir, "/coicop-nace-bridge-ras.ods")
+  
+  # write all in one go
+  readODS::write_ods(x = mget(datasets_to_write), path = output_path)
+
+  return(output_path)
+}
+
+
+create_inputs_economy_consumption_coicop_nace_bridge <- function(raw_data_path) {
 
   ##__________________________________________________
   ##
@@ -12,9 +78,6 @@ create_data_inputs_economy_consumption_coicop_nace_bridge <- function() {
   ##  Updated:  
   ##_________________________________________________
   ##
-
-  ## Remove all existing objects from the environment
-  rm(list=ls()) 
 
   # libraries ---------------------------------------------------------------
   library(dplyr)
@@ -105,15 +168,7 @@ create_data_inputs_economy_consumption_coicop_nace_bridge <- function() {
 
   # targets for RAS --------------------------------------------------------
 
-  expenditure_by_coicop <- eurostat::get_eurostat(
-    "nama_10_co3_p3",
-    time_format = "num",
-    filters = list(
-      geo = geo,
-      time = base_year,
-      unit = "CP_MEUR" # Current prices millions of euros
-    )
-  ) |> 
+  expenditure_by_coicop <- readODS::read_ods(raw_data_path, sheet = "expenditure_by_coicop") |> 
     mutate(
       year = as.integer(time)
     )
@@ -135,17 +190,7 @@ create_data_inputs_economy_consumption_coicop_nace_bridge <- function() {
 
   col_totals <- expenditure_by_fingreen_coicop$expenditure
 
-  hh_fd_bp <- eurostat::get_eurostat(
-    "naio_10_cp1750",
-    time_format = "num",
-    filters = list(
-      geo = geo,
-      time = base_year,
-      ind_use = "P3_S14",
-      stk_flow = "TOTAL",
-      unit = "MIO_EUR"
-    )
-  ) |> 
+  hh_fd_bp <- readODS::read_ods(raw_data_path, "hh_fd_bp") |> 
     mutate(
       year = as.integer(time)
     )
