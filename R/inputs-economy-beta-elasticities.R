@@ -10,7 +10,7 @@
 ##  By Topi-Matti Heikkola
 ##  Email: topi-matti@heikkola.fi
 
-pull_raw_data_inputs_economy_beta_elasticities <- function() {
+pull_raw_data_inputs_economy_beta_elasticities <- function(global_params) {
 
   library(dplyr)
   source("R/fingreen-r-utils.R")
@@ -120,7 +120,13 @@ pull_raw_data_inputs_economy_beta_elasticities <- function() {
   return(output_path)
 }
 
-create_inputs_economy_beta_elasticities <- function(raw_data_path) {
+create_inputs_economy_beta_elasticities <- function(raw_data_path, global_params) {
+
+  geo <- global_params$geo
+  if(geo != "FI"){
+    stop("other countries than FI not yet implemented")
+  }
+
   # dependencies: none
 
   # libraries ---------------------------------------------------------------

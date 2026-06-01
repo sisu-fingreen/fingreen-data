@@ -47,17 +47,23 @@ tar_source(
   files = c(
     "R/fingreen-r-utils.R",
     "R/get-number-of-households.R",
+    "R/pull-raw-data-inputs-economy-consumption.R",
     "R/inputs-economy-beta-elasticities.R",
     "R/inputs-economy-consumption-coicop-nace-bridge-ras.R",
-    "R/inputs-economy-consumption-income.R"
+    "R/inputs-economy-consumption-income.R",
+    "R/inputs-economy-consumption-shares.R"
   )
 )
 
 # This defines the targets and their relationships
 list(
   tar_target(
+    name = global_params,
+    command = config::get(file = "global-params.yml")
+  ),
+  tar_target(
     name = raw_data_n_households,
-    command = pull_raw_data_n_households(),
+    command = pull_raw_data_n_households(global_params = global_params),
     format = "file"
   ),
   tar_target(
@@ -66,34 +72,45 @@ list(
   ),
   tar_target(
     name = raw_data_inputs_economy_beta_elasticities,
-    command = pull_raw_data_inputs_economy_beta_elasticities(),
+    command = pull_raw_data_inputs_economy_beta_elasticities(global_params = global_params),
     format = "file"
   ),
   tar_target(
     name = inputs_economy_beta_elasticities,
-    command = create_inputs_economy_beta_elasticities(raw_data_inputs_economy_beta_elasticities),
+    command = create_inputs_economy_beta_elasticities(
+      raw_data_inputs_economy_beta_elasticities,
+      global_params = global_params
+    ),
     format = "file"
   ),
   tar_target(
-    name = raw_data_inputs_economy_consumption_coicop_nace_bridge,
-    command = pull_raw_data_inputs_economy_consumption_coicop_nace_bridge(),
+    name = raw_data_inputs_economy_consumption,
+    command = pull_raw_data_inputs_economy_consumption(global_params = global_params),
     format = "file"
   ),
   tar_target(
     name = inputs_economy_consumption_coicop_nace_bridge,
-    command = create_inputs_economy_consumption_coicop_nace_bridge(raw_data_inputs_economy_consumption_coicop_nace_bridge),
-    format = "file"
-  ),
-  tar_target(
-    name = raw_data_inputs_economy_consumption_income,
-    command = pull_raw_data_inputs_economy_consumption_income(),
+    command = create_inputs_economy_consumption_coicop_nace_bridge(
+      raw_data_inputs_economy_consumption,
+      global_params = global_params
+    ),
     format = "file"
   ),
   tar_target(
     name = inputs_economy_consumption_income,
     command = create_inputs_economy_consumption_income(
-      raw_data_path = raw_data_inputs_economy_consumption_income,
-      n_households = n_households
+      raw_data_path = raw_data_inputs_economy_consumption,
+      n_households = n_households,
+      global_params = global_params
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_economy_consumption_shares,
+    command = create_inputs_economy_consumption_shares(
+      raw_data_path = raw_data_inputs_economy_consumption,
+      n_households = n_households,
+      global_params = global_params
     ),
     format = "file"
   )
