@@ -51,7 +51,8 @@ tar_source(
     "R/inputs-economy-beta-elasticities.R",
     "R/inputs-economy-consumption-coicop-nace-bridge-ras.R",
     "R/inputs-economy-consumption-income.R",
-    "R/inputs-economy-consumption-shares.R"
+    "R/inputs-economy-consumption-shares.R",
+    "R/inputs-economy-demography-skills.R"
   )
 )
 
@@ -110,6 +111,19 @@ list(
     command = create_inputs_economy_consumption_shares(
       raw_data_path = raw_data_inputs_economy_consumption,
       n_households = n_households,
+      global_params = global_params
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = raw_data_inputs_economy_demography,
+    command = pull_raw_data_inputs_economy_demography(global_params = global_params),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_economy_demography_skills,
+    command = create_inputs_economy_demography_skills(
+      raw_data_path = raw_data_inputs_economy_demography,
       global_params = global_params
     ),
     format = "file"
