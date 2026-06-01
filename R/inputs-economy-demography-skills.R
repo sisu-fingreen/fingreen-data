@@ -106,5 +106,7 @@ create_inputs_economy_demography_skills <- function(raw_data_path, global_params
     x = res,
     path = output_path
   )
+  
+  return(output_path)
 
 }
