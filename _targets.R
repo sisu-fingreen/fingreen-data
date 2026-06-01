@@ -52,7 +52,8 @@ tar_source(
     "R/inputs-economy-consumption-coicop-nace-bridge-ras.R",
     "R/inputs-economy-consumption-income.R",
     "R/inputs-economy-consumption-shares.R",
-    "R/inputs-economy-demography-skills.R"
+    "R/inputs-economy-demography-skills.R",
+    "R/inputs-economy-finance-wealth.R"
   )
 )
 
@@ -127,5 +128,17 @@ list(
       global_params = global_params
     ),
     format = "file"
+  ),
+  tar_target(
+    name = raw_data_inputs_economy_finance,
+    command = pull_raw_data_inputs_economy_finance(global_params = global_params),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_economy_finance_wealth,
+    command = create_inputs_economy_finance_wealth(
+      raw_data_path = raw_data_inputs_economy_finance,
+      global_params = global_params
+    )
   )
 )
