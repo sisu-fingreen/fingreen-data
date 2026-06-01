@@ -1,80 +1,4 @@
-pull_raw_data_inputs_economy_consumption_income <- function() {
-
-  library(dplyr)
-  source("R/fingreen-r-utils.R", local = TRUE)
-
-  working_directory <- getwd()
-
-  raw_data_dir <- paste0(working_directory, "/raw-data/inputs-economy/consumption")
-  create_dir_if_not_exists(raw_data_dir, "raw data")
-
-  global_params <- config::get(file = "global-params.yml")
-
-  base_year <- global_params$base_year
-  geo <- global_params$geo
-
-  # We need to get the data from Eurostat (not statfin), because in Eurostat the income quantiles have
-  # equal number of households, instead of equal number of people. Refer to
-  # https://ec.europa.eu/eurostat/documents/54431/1966394/Standardised-key-social-variables.pdf
-  # In Eurostat, we don't have direct data on the mean disposable income per quintile, but
-  # we can deduct it from the shares of disposable income, the total disposable income, and
-  # the number of households per quintile.
-
-  share_of_disposable_income_per_quintile <- eurostat::get_eurostat(
-    "icw_res_01",
-    time_format = "num",
-    filters = list(
-      geo = geo,
-      time = base_year,
-      quant_inc = paste0("QU", 1L:5L),
-      indic_ewb = "DI", # DI = disposable income
-      quant_expn = "TOTAL",
-      quant_wlth = "TOTAL",
-      unit = "PC"
-    )
-  )
-  share_of_disposable_income_per_quintile_schema <- structure(
-    list(
-      column_name = c('freq', 'quant_inc', 'quant_expn', 'quant_wlth', 'indic_ewb', 'unit', 'geo', 'time', 'values'),
-      column_type = c('character', 'character', 'character', 'character', 'character', 'character', 'character', 'numeric', 'numeric')
-    ),
-    class = 'data.frame',
-    row.names = c('freq', 'quant_inc', 'quant_expn', 'quant_wlth', 'indic_ewb', 'unit', 'geo', 'time', 'values')
-  )
-  validate_schema(share_of_disposable_income_per_quintile, share_of_disposable_income_per_quintile_schema, "share_of_disposable_income_per_quintile")
-
-  total_disposable_income <- eurostat::get_eurostat(
-    "nasa_10_nf_tr",
-    time_format = "num",
-    filters = list(
-      geo = geo,
-      time = base_year,
-      unit = "CP_MEUR", # current price, millions of euros
-      direct = "PAID",
-      na_item = "B6G", # disposable income
-      sector = "S14" # S14 = households
-    )
-  )
-  total_disposable_income_schema <- structure(
-    list(
-      column_name = c('freq', 'unit', 'direct', 'na_item', 'sector', 'geo', 'time', 'values'),
-      column_type = c('character', 'character', 'character', 'character', 'character', 'character', 'numeric', 'integer')
-    ),
-    class = 'data.frame',
-    row.names = c('freq', 'unit', 'direct', 'na_item', 'sector', 'geo', 'time', 'values')
-  )
-  validate_schema(total_disposable_income, total_disposable_income_schema, "total_disposable_income")
-
-  datasets_to_write <- c("share_of_disposable_income_per_quintile", "total_disposable_income")
-
-  output_path <- paste0(raw_data_dir, "income.ods")
-  
-  readODS::write_ods(x = mget(datasets_to_write), path = output_path)
-  
-  return(output_path)
-}
-
-create_inputs_economy_consumption_income <- function(raw_data_path, n_households) {
+create_inputs_economy_consumption_income <- function(raw_data_path, n_households, global_params) {
 
   # dependencies: none
   
@@ -91,8 +15,6 @@ create_inputs_economy_consumption_income <- function(raw_data_path, n_households
   # stopifnot(is_installed("writexl"))
 
   # parameters -------------------------------------------------------------
-
-  global_params <- config::get(file = "global-params.yml")
 
   base_year <- global_params$base_year
   geo <- global_params$geo

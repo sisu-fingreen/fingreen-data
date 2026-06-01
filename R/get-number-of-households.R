@@ -1,8 +1,7 @@
-pull_raw_data_n_households <- function(geo, year) {
+pull_raw_data_n_households <- function(global_params) {
 
   source("R/fingreen-r-utils.R")
 
-  global_params <- config::get(file = "global-params.yml")
   base_year <- global_params$base_year
   geo <- global_params$geo
 
