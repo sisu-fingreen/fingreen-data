@@ -22,3 +22,6 @@ Queries into eg. StatFin database: use the `queries` subfolder and the same fold
 Source data: use the `source-data` subfolder and either a subfolder structure as specified above, or a subfolder (eg. `euklems`) according to the data source. The latter especially for data that may be used in calculations of multiple input sheet data.
 
 Both graphs and results are excluded from the repo in the .gitignore for now. Source data files are also excluded by default, add manually with `git add` if tracking is needed.
+
+## Licences
+`/source-data/euklems/18II*`: The Conference Board, 2023, "EU KLEMS July 2018 Release", https://doi.org/10.34894/6GDD7Q, DataverseNL, V1. Licenced under [CC-BY-4.0](http://creativecommons.org/licenses/by/4.0)

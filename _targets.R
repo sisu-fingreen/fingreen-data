@@ -54,7 +54,8 @@ tar_source(
     "R/inputs-economy-consumption-shares.R",
     "R/inputs-economy-demography-skills.R",
     "R/inputs-economy-finance-wealth.R",
-    "R/inputs-economy-government-investment.R"
+    "R/inputs-economy-government-investment.R",
+    "R/inputs-economy-investments-depreciation.R"
   )
 )
 
@@ -153,6 +154,13 @@ list(
     name = inputs_economy_government_investment,
     command = create_inputs_economy_government_investment(
       raw_data_path = raw_data_inputs_economy_government_investment,
+      global_params = global_params
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_economy_investments_depreciation,
+    command = create_inputs_economy_investments_depreciation(
       global_params = global_params
     ),
     format = "file"
