@@ -1,31 +1,30 @@
-# libraries ---------------------------------------------------------------
+create_inputs_economy_investments_depreciation <- function(global_params) {
 
-library(dplyr)
-library(ggplot2)
-library(pxweb)
-library(eurostat)
+  # libraries ---------------------------------------------------------------
 
-source("fingreen-r-utils.R")
+  library(dplyr)
+  library(ggplot2)
 
-# needed but not loaded to the namespace
+  source("R/fingreen-r-utils.R")
 
-stopifnot(is_installed("writexl"))
+  global_params <- config::get(file = "global-params.yml")
 
-global_params <- config::get(file = "global-params.yml")
+  geo <- global_params$geo
+  geo3 <- global_params$geo3
+  base_year <- global_params$base_year |> as.integer()
 
-# directory setup ---------------------------------------------------------
+  # directory setup ---------------------------------------------------------
 
-working_directory <- getwd()
+  working_directory <- getwd()
 
-graphs_dir <- paste0(working_directory, "/graphs/inputs-economy/investment/")
-create_dir_if_not_exists(graphs_dir, "graphs")
+  graphs_dir <- paste0(working_directory, "/graphs/inputs-economy/investment/")
+  create_dir_if_not_exists(graphs_dir, "graphs")
 
-results_dir <- paste0(working_directory, "/results/inputs-economy/investment/")
-create_dir_if_not_exists(results_dir, "results")
+  results_dir <- paste0(working_directory, "/results/inputs-economy/investment/")
+  create_dir_if_not_exists(results_dir, "results")
 
-# functions --------------------------------------------------------------
+  # functions --------------------------------------------------------------
 
-create_data_depreciation_rates <- function() {
   geo <- global_params$geo
   geo3 <- global_params$geo3
 
@@ -33,8 +32,6 @@ create_data_depreciation_rates <- function() {
 
   time_start <- 2000
   time_end <- 2022
-
-  # check if there is a dir for EUKLEMS data, and create one if not
 
   euklems_dir <- paste0(working_directory, "/source-data/euklems")
 
@@ -91,9 +88,19 @@ create_data_depreciation_rates <- function() {
     )
 
   # Figure of the assets by industry
-  # capital_stock_base_year |>
-  #   ggplot(aes(isic4, value, fill = asset)) +
-  #   geom_col(position = "stack")
+  p_assets_by_industry <- capital_stock_base_year |>
+    ggplot2::ggplot(aes(isic4, value, fill = asset)) +
+    ggplot2::geom_col(position = "stack") +
+    ggplot2::ggtitle("Capital assets by industry")
+  
+  p_assets_by_industry_path <- paste0(graphs_dir, "assets-by-industry.png")
+
+  ggplot2::ggsave(
+    filename = p_assets_by_industry_path,
+    width = 6,
+    height = 4.5
+  )
+  catn("Saved assets by industry plot to ", p_assets_by_industry_path)
 
   # Due to the nature of the many-to-many mapping,
   # the totals will be off, but it does not matter
@@ -146,20 +153,23 @@ create_data_depreciation_rates <- function() {
   stopifnot(identical(unique_fingreen_industry_codes_in_map, unique_fingreen_industry_codes_in_result))
   # results ----------------------------------------------------------------
 
-  res <- depreciation_rate_by_fingreen_industry |>
+  res_to_write <- depreciation_rate_by_fingreen_industry |>
     tidyr::pivot_wider(
       names_from = fingreen_industry_code,
       values_from = industry_depreciation_rate
     )
   
-  stopifnot(identical(ncol(res), 41L))
+  stopifnot(identical(ncol(res_to_write), 41L))
   
-  return(res)
+  # write results ----------------------------------------------------------
+
+  output_path <- paste0(results_dir, "depreciation-rates.ods")
+
+  res_to_write |> 
+    readODS::write_ods(
+      path = output_path
+    )
+  
+  return(output_path)
+
 }
-
-# write results ----------------------------------------------------------
-
-create_data_depreciation_rates() |> 
-  writexl::write_xlsx(
-    path = sprintf("%s/depreciation-rates.xlsx", results_dir)
-  )
