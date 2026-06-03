@@ -8,7 +8,7 @@ pull_raw_data_inputs_economy_government_investment <- function(global_params) {
 
   working_directory <- getwd()
 
-  raw_data_dir <- paste0(working_directory, "/raw-data/")
+  raw_data_dir <- paste0(working_directory, "/raw-data/inputs-economy/government/")
   create_dir_if_not_exists(raw_data_dir, "raw data")
   
   if(geo != "FI") {
