@@ -77,7 +77,7 @@ put_schema <- function(df) {
   # A helper function to output schema of a dataframe to the console.
   # helpful for defining comparison schemas for validate_schema
   schema <- data.frame(column_name = colnames(df), column_type = sapply(df, class))
-  cat(
+  schema_string <- paste(
     "structure(\n",
     "  list(\n",
     "    column_name = c('", paste(colnames(df), collapse = "', '"), "'),\n",
@@ -88,7 +88,8 @@ put_schema <- function(df) {
     ")\n",
     sep = ""
   )
-  return(invisible(TRUE))
+  cat(schema_string)
+  return(invisible(schema_string))
 }
 
 validate_schema <- function(df, expected_schema, df_name) {
