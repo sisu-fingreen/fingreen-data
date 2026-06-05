@@ -476,6 +476,8 @@ calculate_u_stats <- function(df, filtering_df){
 
 u_neg_norm_long <- calculate_u_stats(technical_coefficient_growth_filtered, total_intermediate_input_changes_neg)
 u_pos_norm_long <- calculate_u_stats(technical_coefficient_growth_filtered, total_intermediate_input_changes_pos)
+# filter by itself to not filter at all: all changes, pos and neg
+u_norm_long <- calculate_u_stats(technical_coefficient_growth_filtered, technical_coefficient_growth_filtered)
 
 # results -----------------------------------------------------------------
 
@@ -491,5 +493,6 @@ res_list <- list()
 
 res_list[["u_neg_norm"]] <- prepare_results(u_neg_norm_long)
 res_list[["u_pos_norm"]] <- prepare_results(u_pos_norm_long)
+res_list[["u_norm"]] <- prepare_results(u_norm_long)
 
-writexl::write_xlsx(res_list, path = paste0(results_dir, "/u-neg-norm-pos-norm.xlsx"))
+writexl::write_xlsx(res_list, path = paste0(results_dir, "/u-norm-neg-norm-pos-norm.xlsx"))

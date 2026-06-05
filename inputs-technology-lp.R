@@ -27,11 +27,11 @@ stopifnot(is_installed("readxl"))
 
 working_directory <- getwd()
 
-graphs_dir <- paste0(working_directory, "/graphs/inputs-technology/labour-productivity")
+graphs_dir <- paste0(working_directory, "/graphs/inputs-technology/labour-productivity/")
 
 create_dir_if_not_exists(graphs_dir, "graphs")
 
-results_dir <- paste0(working_directory, "/results/inputs-technology/labour-productivity")
+results_dir <- paste0(working_directory, "/results/inputs-technology/labour-productivity/")
 
 create_dir_if_not_exists(results_dir, "results")
 
@@ -215,6 +215,13 @@ neg_labour_productivity_changes <- labour_productivity %>%
   ) %>% 
   filter(year >= 1996L & !is.na(psi_lambda))
 
+all_labour_productivity_changes <- labour_productivity %>% 
+  left_join(shares_of_new_capital, by = c("fingreen_industry_code", "year")) %>% 
+  mutate(
+    psi_lambda = g_labour_productivity / share_of_new_capital
+  ) %>% 
+  filter(year >= 1996L & !is.na(psi_lambda))
+
 pos_labour_productivity_changes %>%
   ggplot(aes(year, psi_lambda)) +
   geom_point() +
@@ -222,6 +229,12 @@ pos_labour_productivity_changes %>%
   facet_wrap(~fingreen_industry_code, scales = "free_y")
 
 neg_labour_productivity_changes %>% 
+  ggplot(aes(year, psi_lambda)) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~fingreen_industry_code, scales = "free_y")
+
+all_labour_productivity_changes %>% 
   ggplot(aes(year, psi_lambda)) +
   geom_point() +
   geom_line() +
@@ -241,6 +254,9 @@ pos_labour_productivity_changes_2010eur <- pos_labour_productivity_changes %>%
 
 neg_labour_productivity_changes_2010eur <- neg_labour_productivity_changes %>% 
   mutate(across(all_of(eur_variables), .fns = ~ convert_eur_value_between_years(.x, 2020L, 2010L)))
+
+all_labour_productivity_changes_2010eur <- all_labour_productivity_changes %>% 
+  mutate(across(all_of(eur_variables), .fns = ~ convert_eur_value_between_years(.x, 2020L, 2010L)))
 # results -----------------------------------------------------------------
 
 # Extract the distribution statistics from the data and export to excel
@@ -253,8 +269,6 @@ lp_pos_norm_klems <- pos_labour_productivity_changes_2010eur %>%
   ) %>%
   data.table::transpose(keep.names = "measure")
 
-
-
 lp_neg_norm_klems <- neg_labour_productivity_changes_2010eur %>% 
   group_by(fingreen_industry_code) %>% 
   summarise(
@@ -264,5 +278,16 @@ lp_neg_norm_klems <- neg_labour_productivity_changes_2010eur %>%
   ) %>%
   data.table::transpose(keep.names = "measure")
 
-writexl::write_xlsx(lp_pos_norm_klems, "results/inputs-technology/labour-productivity/lp_pos_norm_klems.xlsx", col_names = F)
-writexl::write_xlsx(lp_neg_norm_klems, "results/inputs-technology/labour-productivity/lp_neg_norm_klems.xlsx", col_names = F)
+lp_norm_klems <- all_labour_productivity_changes_2010eur %>% 
+  group_by(fingreen_industry_code) %>% 
+  summarise(
+    mean = mean(psi_lambda),
+    median = median(psi_lambda),
+    sd = sd(psi_lambda)
+  ) %>%
+  data.table::transpose(keep.names = "measure")
+
+readODS::write_ods(
+  x = mget(c("lp_norm_klems", "lp_pos_norm_klems", "lp_neg_norm_klems")),
+  path = paste0(results_dir, "lp.ods"), col_names = F
+)
