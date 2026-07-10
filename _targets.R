@@ -56,7 +56,8 @@ tar_source(
     "R/inputs-economy-finance-wealth.R",
     "R/inputs-economy-government-investment.R",
     "R/inputs-economy-investments-depreciation.R",
-    "R/inputs-economy-labour-demographics.R"
+    "R/inputs-economy-labour-demographics.R",
+    "R/inputs-economy-labour-hours.R"
   )
 )
 
@@ -180,6 +181,19 @@ list(
       raw_data_path = raw_data_inputs_economy_labour_demographics,
       global_params = global_params,
       imputation_year = 2020L # needs to match that of the pull_raw_data call above
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = raw_data_inputs_economy_labour_hours,
+    command = pull_raw_data_inputs_economy_labour_hours(global_params),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_economy_labour_hours,
+    command = create_inputs_economy_labour_hours(
+      raw_data_path = raw_data_inputs_economy_labour_hours,
+      global_params = global_params
     ),
     format = "file"
   )
