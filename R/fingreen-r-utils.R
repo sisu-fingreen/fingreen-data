@@ -268,11 +268,11 @@ convert_eur_value_between_years <- function(x, from, to){
     
     # Statfin has a handy api for money (eur) value conversion between years
     conversion_factor_query <- pxweb::pxweb_query(
-      list(Vuosi = as.character(year_pair), Tiedot = "pisteluku")
+      list(timeperiod_y = as.character(year_pair), contentscode = "khi-pisteluku")
     )
     
     conversion_factor <- pxweb::pxweb_get(
-      url = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/khi/statfin_khi_pxt_11xy.px",
+      url = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/khi/11xy.px",
       query = conversion_factor_query
     ) |> as.data.frame() |> 
       fix_names() |> 

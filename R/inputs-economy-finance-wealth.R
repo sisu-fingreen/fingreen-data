@@ -56,12 +56,12 @@ pull_raw_data_inputs_economy_finance <- function(global_params) {
   statfin_closest_wealth_year <- statfin_wealth_data_years[which.min(abs(base_year - statfin_wealth_data_years))]
   catn("Closest year in statfin wealth data is ", statfin_closest_wealth_year, ", using that")
   wealth_by_skill <- pxweb::pxweb_get_data(
-    url = "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/vtutk/statfin_vtutk_pxt_151w.px",
+    url = "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/vtutk/151w.px",
     query = list(
-      Varallisuuslaji = "nettoae_DN3001", # net personal wealth
-      Koulutusaste = c("9", "3", "5-8"),
-      Vuosi = as.character(statfin_closest_wealth_year),
-      Tiedot = c("vtutk_keskiarvo_n", "vtutk_kotitalouksia_perusjoukko")
+      vtutk_varlaji_6_20200101 = "nettoae_DN3001", # net personal wealth
+      koulutusaste_16_20160101 = c("9", "3", "5-8"),
+      timeperiod_y = as.character(statfin_closest_wealth_year),
+      contentscode = c("vtutk_keskiarvo_n", "vtutk_kotitalouksia_perusjoukko")
     )
   )
   wealth_by_skill_schema <- structure(
@@ -79,6 +79,8 @@ pull_raw_data_inputs_economy_finance <- function(global_params) {
   output_path <- paste0(raw_data_dir, "finance.ods")
   
   readODS::write_ods(x = mget(datasets_to_write), path = output_path)
+
+  return(output_path)
 
 }
 
