@@ -262,7 +262,8 @@ convert_eur_value_between_years <- function(x, from, to){
     return(x)
   }
   
-  year_pairs_list <- tibble(from, to) |> distinct() |> filter(from != to) |> asplit(1)
+  year_pairs <- tibble(from, to) |> distinct() |> filter(from != to)
+  year_pairs_list <- split(x = year_pairs, f = year_pairs)
   
   get_conversion_factor_for_year_pair <- function(year_pair) {
     
@@ -280,7 +281,7 @@ convert_eur_value_between_years <- function(x, from, to){
       summarise(conversion_factor = first(pisteluku) / last(pisteluku)) |> 
       pull(conversion_factor)
     
-    res <- if_else(year_pair[1] >= year_pair[2], conversion_factor, 1 / conversion_factor)
+    res <- if_else(year_pair$from >= year_pair$to, conversion_factor, 1 / conversion_factor)
     
     return(res)
   }
