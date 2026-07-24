@@ -58,6 +58,7 @@ source-data/temp/
 results/
 source-data/wiod/
 source-data/tsm/
+raw-data/
 
 # LibreOffice lock files
 *~lock.*
