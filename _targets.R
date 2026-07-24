@@ -57,7 +57,12 @@ tar_source(
     "R/inputs-economy-government-investment.R",
     "R/inputs-economy-investments-depreciation.R",
     "R/inputs-economy-labour-demographics.R",
-    "R/inputs-economy-labour-hours.R"
+    "R/inputs-economy-labour-hours.R",
+    "R/wage-distribution.R",
+    "R/inputs-economy-labour-wages.R",
+    "R/pull-raw-data-inputs-economy-inputoutput.R",
+    "R/inputs-economy-finaldemand-npish.R",
+    "R/inputs-economy-labour-unemployment.R"
   )
 )
 
@@ -194,6 +199,57 @@ list(
     command = create_inputs_economy_labour_hours(
       raw_data_path = raw_data_inputs_economy_labour_hours,
       global_params = global_params
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = wage_distribution,
+    command = create_wage_distribution(
+      wage_microdata_path = "source-data/microdata/wages-by-Skill-adjusted-2010_2022-(KUN-VAL-YKS).xlsx",
+      global_params = global_params
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = raw_data_inputs_economy_labour_unemployment,
+    command = pull_raw_data_inputs_economy_labour_unemployment(global_params = global_params),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_economy_labour_unemployment,
+    command = create_inputs_economy_labour_unemployment(
+      raw_data_path = raw_data_inputs_economy_labour_unemployment,
+      global_params = global_params
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = raw_data_inputs_economy_labour_wages,
+    command = pull_raw_data_inputs_economy_labour_wages(global_params = global_params),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_economy_labour_wages,
+    command = create_inputs_economy_labour_wages(
+      raw_data_path = raw_data_inputs_economy_labour_wages,
+      raw_data_labour_hours_path = raw_data_inputs_economy_labour_hours,
+      labour_demographics_path = inputs_economy_labour_demographics,
+      labour_unemployment_path = inputs_economy_labour_unemployment,
+      wage_distribution_data_path = wage_distribution,
+      global_params = global_params
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = raw_data_inputs_economy_inputoutput,
+    command = pull_raw_data_inputs_economy_inputouput(global_params = global_params),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_economy_finaldemand_npish,
+    command = create_inputs_economy_finaldemand_npish(
+      global_params = global_params,
+      raw_data_path = raw_data_inputs_economy_inputoutput
     ),
     format = "file"
   )
