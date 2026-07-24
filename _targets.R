@@ -62,7 +62,8 @@ tar_source(
     "R/inputs-economy-labour-wages.R",
     "R/pull-raw-data-inputs-economy-inputoutput.R",
     "R/inputs-economy-finaldemand-npish.R",
-    "R/inputs-economy-labour-unemployment.R"
+    "R/inputs-economy-labour-unemployment.R",
+    "R/inputs-economy-labour-male-share-trends.R"
   )
 )
 
@@ -252,5 +253,14 @@ list(
       raw_data_path = raw_data_inputs_economy_inputoutput
     ),
     format = "file"
+  ),
+  tar_target(
+    name = inputs_economy_labour_male_share_trends,
+    command = create_inputs_economy_labour_male_share_trends(
+      # Note that this microdata is for Finland,
+      # attain similar data for another country if required
+      male_share_microdata_path = "source-data/inputs-economy/labour/Male-share-by-Skill-2010_2022-(KUN-VAL-YKS).xlsx",
+      global_params = global_params
+    )
   )
 )
