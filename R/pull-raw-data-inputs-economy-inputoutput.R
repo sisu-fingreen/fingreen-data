@@ -11,19 +11,11 @@ pull_raw_data_inputs_economy_inputouput <- function(global_params, end_year = 20
   raw_data_dir <- paste0(working_directory, "/raw-data/inputs-economy/inputoutput/")
   create_dir_if_not_exists(raw_data_dir, "raw data")
   
-  # get_eurostat (via get_eurostat_json) asks for user input in some cases (like for io tables)
-  # Mock the readline function to return "" to skip the user input request
-  # A bit hacky maybe, but it works and we return it to what it was
-  # orig_readline <- base::readline
-  # assignInNamespace("readline", value = function(prompt = "") {""}, ns = "base")
-  # failed alternatives
-  # testthat::local_mocked_bindings(readline = "", .package = "base")
-  # mockery::stub(where = eurostat::get_eurostat_json, what = "special_id_values", how = FALSE)
   io_annual <- eurostat::get_eurostat_json(
     "naio_10_cp1750",
     time_format = "num",
     filters = list(
-      geo = "FI",
+      geo = geo,
       time = base_year:end_year,
       unit = "MIO_EUR"
     ),
