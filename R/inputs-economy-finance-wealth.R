@@ -16,9 +16,9 @@ pull_raw_data_inputs_economy_finance <- function(global_params) {
     years = base_year,
     perc = "p99p100", # top 1% = capitalists
     age = "999", # all ages
-    pop = "j", # j = equal-split-adults, wealth equally between spouses
-    include_extrapolations = FALSE
+    pop = "j" # j = equal-split-adults, wealth equally between spouses
   )
+
   capitalist_wealth_share_schema <- structure(
     list(
       column_name = c('country', 'variable', 'percentile', 'year', 'value'),
@@ -35,9 +35,9 @@ pull_raw_data_inputs_economy_finance <- function(global_params) {
     year = base_year,
     perc = "p0p100",
     age = "992", # adults 20+, the best applicable category
-    pop = "i", # individuals
-    include_extrapolations = FALSE
+    pop = "i" # individuals
   )
+
   per_adult_wealth_last_year_price_schema <- structure(
     list(
       column_name = c('country', 'variable', 'percentile', 'year', 'value'),
