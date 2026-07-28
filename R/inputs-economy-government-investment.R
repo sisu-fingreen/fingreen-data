@@ -18,14 +18,14 @@ pull_raw_data_inputs_economy_government_investment <- function(global_params) {
   }
 
   gfcf_gov_and_total <- pxweb::pxweb_get_data(
-    url = "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/ntp/statfin_ntp_pxt_15af.px",
+    url = "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/ntp/15af.px",
     query = list(
-      Taloustoimi = "P51K", # gfcf gross fixed capital formation
-      Sektori = c("S1", "S13"), # S1 total economy, S13 general government
-      Toimiala = c("P", "Q"), # P education Q health
-      Vara = "N0", # Non-financial assets total
-      Vuosi = as.character(base_year:(base_year + 5L)),
-      Tiedot = "cp"
+      taloustoimi_1_20180101 = "P51K", # gfcf gross fixed capital formation
+      sektoriluokitus_7_20230101 = c("S1", "S13"), # S1 total economy, S13 general government
+      toimiala_79_20180101 = c("P", "Q"), # P education Q health
+      varojenluokitus_5_20180101 = "N0", # Non-financial assets total
+      timeperiod_y = as.character(base_year:(base_year + 5L)),
+      contentscode = "ntp-cp"
     )
   )
   gfcf_gov_and_total_schema <- structure(
