@@ -63,7 +63,10 @@ tar_source(
     "R/pull-raw-data-inputs-economy-inputoutput.R",
     "R/inputs-economy-finaldemand-npish.R",
     "R/inputs-economy-labour-unemployment.R",
-    "R/inputs-economy-labour-male-share-trends.R"
+    "R/inputs-economy-labour-male-share-trends.R",
+    "R/inputs-technology-lp.R",
+    "R/inputs-technology-trends.R",
+    "R/inputs-technology-u.R"
   )
 )
 
@@ -243,7 +246,7 @@ list(
   ),
   tar_target(
     name = raw_data_inputs_economy_inputoutput,
-    command = pull_raw_data_inputs_economy_inputouput(global_params = global_params),
+    command = pull_raw_data_inputs_economy_inputouput(global_params = global_params, end_year = 2022L),
     format = "file"
   ),
   tar_target(
@@ -262,5 +265,35 @@ list(
       male_share_microdata_path = "source-data/inputs-economy/labour/Male-share-by-Skill-2010_2022-(KUN-VAL-YKS).xlsx",
       global_params = global_params
     )
+  ),
+  tar_target(
+    name = raw_data_inputs_technology_lp,
+    command = pull_raw_data_inputs_technology_lp(global_params = global_params, start_year = 1995L),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_technology_lp,
+    command = create_inputs_technology_lp(
+      global_params = global_params,
+      raw_data_path = raw_data_inputs_technology_lp
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_technology_trends,
+    command = create_inputs_technology_trends(
+      global_params = global_params,
+      raw_data_path = raw_data_inputs_economy_inputoutput
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_technology_u,
+    command = create_inputs_technology_u(
+      global_params = global_params,
+      raw_data_path = raw_data_inputs_economy_inputoutput,
+      na_data_path = raw_data_inputs_technology_lp
+    ),
+    format = "file"
   )
 )
