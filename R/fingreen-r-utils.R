@@ -22,6 +22,7 @@ check_required_package_installs <- function(){
   stopifnot(is_installed("htmlwidgets"))
   stopifnot(is_installed("mipfp"))
   stopifnot(is_installed("config"))
+  stopifnot(is_installed("performance"))
   stopifnot(is_installed("wid")) # github world-inequality-database/wid-r-tool
 }
 
