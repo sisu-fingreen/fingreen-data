@@ -15,14 +15,14 @@ pull_raw_data_inputs_economy_demography <- function(global_params) {
   # Satfin data is correct, eurostat is not (for Finland). Get the data from statfin, or your relevant national institution. Or at least verify
   # that eurostat data matches it.
   population_by_age_gender_skill <- pxweb::pxweb_get_data(
-    url = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/vkour/statfin_vkour_pxt_12bq.px",
+    url = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/vkour/12bq.px",
     query = list(
-      Vuosi = as.character(base_year),
-      Alue = "SSS",
-      Ikä = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-"),
-      Sukupuoli = c("SSS", "1", "2"),
-      Koulutusaste = as.character(3:9),
-      Tiedot = "*"
+      timeperiod_y = as.character(base_year),
+      alue_23_20260101 = "SSS",
+      ikaryhma_10_20180101 = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-"),
+      sukupuoli_9_20180101 = c("SSS", "1", "2"),
+      koulutusaste_17_20180101 = as.character(3:9),
+      contentscode = "*"
     )
   )
   population_by_age_gender_skill_schema <- structure(
