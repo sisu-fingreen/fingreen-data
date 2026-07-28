@@ -27,11 +27,11 @@ pull_raw_data_inputs_economy_demography <- function(global_params) {
   )
   population_by_age_gender_skill_schema <- structure(
     list(
-      column_name = c('Vuosi', 'Alue', 'Ikä', 'Sukupuoli', 'Koulutusaste', '15 vuotta täyttänyt väestö 31.12'),
+      column_name = c('Vuosi', 'Alue 2026', 'Ikä', 'Sukupuoli', 'Koulutusaste', '15 vuotta täyttänyt väestö 31.12'),
       column_type = c('character', 'character', 'character', 'character', 'character', 'numeric')
     ),
     class = 'data.frame',
-    row.names = c('Vuosi', 'Alue', 'Ikä', 'Sukupuoli', 'Koulutusaste', '15 vuotta täyttänyt väestö 31.12')
+    row.names = c('Vuosi', 'Alue 2026', 'Ikä', 'Sukupuoli', 'Koulutusaste', '15 vuotta täyttänyt väestö 31.12')
   )
   validate_schema(population_by_age_gender_skill, population_by_age_gender_skill_schema, "population_by_age_gender_skill")
   
