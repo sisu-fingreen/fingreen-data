@@ -287,7 +287,7 @@ convert_eur_value_between_years <- function(x, from, to){
     
     # This limits the rate a bit, otherwise the statfin API gets mad.
     # Their limit is 30 queries in 10 secs
-    Sys.sleep(0.4) 
+    Sys.sleep(0.55) 
 
     return(res)
   }
