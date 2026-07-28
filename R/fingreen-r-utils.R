@@ -7,6 +7,7 @@ is_installed <- function(pkg) {
 }
 
 check_required_package_installs <- function(){
+  stopifnot(is_installed("targets"))
   stopifnot(is_installed("dplyr"))
   stopifnot(is_installed("readODS"))
   stopifnot(is_installed("readxl"))
@@ -284,6 +285,10 @@ convert_eur_value_between_years <- function(x, from, to){
     
     res <- if_else(year_pair$from >= year_pair$to, conversion_factor, 1 / conversion_factor)
     
+    # This limits the rate a bit, otherwise the statfin API gets mad.
+    # Their limit is 30 queries in 10 secs
+    Sys.sleep(0.4) 
+
     return(res)
   }
   
