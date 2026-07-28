@@ -9,6 +9,10 @@ library(targets)
 
 # Set target options:
 tar_option_set(
+  # trim: all currently running targets stay running. A queued target is allowed to start if:
+  # 1) It is not downstream of the error, and
+  # 2) It is not a sibling branch from the same tar_target() call (if the error happened in a dynamic branch).
+  error = "trim"
   # format = "qs", # Optionally set the default storage format. qs is fast.
   #
   # Pipelines that take a long time to run may benefit from
