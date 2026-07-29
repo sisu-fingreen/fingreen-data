@@ -172,7 +172,7 @@ eurostat_coicop_to_fingreen_coicop <- function(codes){
 
 fingreen_coicop_to_description <- function(codes){
 
-  res <- dplyr::case_match(
+  res <- dplyr::replace_values(
     codes,
     "CP01" ~ "Food and non-alcoholic beverages",
     "CP02" ~ "Alcoholic beverages, tobacco and narcotics",

@@ -73,14 +73,14 @@ create_inputs_economy_demography_skills <- function(raw_data_path, global_params
   skill_share_by_gender_age <- population_by_age_gender_skill |> 
     mutate(
       gender = factor(sukupuoli, levels = c("Naiset", "Miehet", "Yhteensä"), labels = c("female", "male", "total")),
-      age_class = case_match(
+      age_class = replace_values(
         ikä,
         c("15 - 19", "20 - 24") ~ "15-24",
         c("25 - 29", "30 - 34", "35 - 39", "40 - 44") ~ "25-44",
         c("45 - 49", "50 - 54", "55 - 59", "60 - 64") ~ "45-64",
         c("65 - 69", "70 - 74", "75 - 79", "80 -") ~ "65+"
       ) |> factor(levels = c("0-14", "15-24", "25-44", "45-64", "65+")),
-      skill_level = case_match(
+      skill_level = replace_values(
         substr(koulutusaste, 1, 1),
         c(NA, "9") ~ "low",
         as.character(3:4) ~ "middle",

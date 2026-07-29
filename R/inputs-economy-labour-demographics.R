@@ -393,7 +393,7 @@ create_inputs_economy_labour_demographics <- function(
             substr(educational_level, 1, 1) == 3 ~ "mid",
             substr(educational_level, 1, 1) == 5 ~ "high",
           ) |> factor(levels = c("low", "mid", "high")),
-          sex = case_match(sex, "Males" ~ "male", "Females" ~ "female")
+          sex = replace_values(sex, "Males" ~ "male", "Females" ~ "female")
         ) |> 
         group_by(sex) |> 
         mutate(share_of_employed_persons_by_sex = employed_1000_persons / sum(employed_1000_persons)) |> 

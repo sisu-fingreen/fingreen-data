@@ -210,7 +210,7 @@ create_inputs_economy_beta_elasticities <- function(raw_data_path, global_params
       names_to = "fingreen_coicop"
     ) %>%
     mutate(
-      quantile = case_match(
+      quantile = replace_values(
         quantile,
         "I" ~ "QU1",
         "II" ~ "QU2",
