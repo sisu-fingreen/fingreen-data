@@ -399,7 +399,7 @@ create_inputs_economy_beta_elasticities <- function(raw_data_path, global_params
 
   # Filter out the bad keys from the expenditure data (does nothing if there are 0 bad keys)
   expenditures_filtered <- expenditures_filtered %>%
-    anti_join(bad_hicp_keys)
+    anti_join(bad_hicp_keys, by = c("time", "geo", "fingreen_coicop"))
 
   hicp_item_weights_na_omitted <- hicp_item_weights %>%
     filter(!is.na(cat_weight))
@@ -614,7 +614,8 @@ create_inputs_economy_beta_elasticities <- function(raw_data_path, global_params
         formula = "log(expenditure_share) ~ difference_in_cumulative_inflation + quantile + geo",
         data = data
       )),
-      lm_results = list(broom::tidy(mod))
+      lm_results = list(broom::tidy(mod)),
+      .groups = "keep"
     ) %>%
     select(fingreen_coicop, lm_results) %>%
     unnest(lm_results) %>%
@@ -628,7 +629,8 @@ create_inputs_economy_beta_elasticities <- function(raw_data_path, global_params
         formula = "log(expenditure_share) ~ difference_in_cumulative_inflation + geo",
         data = data
       )),
-      lm_results = list(broom::tidy(mod))
+      lm_results = list(broom::tidy(mod)),
+      .groups = "keep"
     ) %>%
     select(fingreen_coicop, quantile, lm_results) %>%
     unnest(lm_results) %>%

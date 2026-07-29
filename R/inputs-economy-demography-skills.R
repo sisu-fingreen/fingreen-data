@@ -88,7 +88,7 @@ create_inputs_economy_demography_skills <- function(raw_data_path, global_params
       ) |> factor(levels = c("low", "middle", "high"))
     ) |> 
     group_by(age_class, gender, skill_level) |> 
-    summarise(n = sum(x15_vuotta_täyttänyt_väestö_31_12)) |> 
+    summarise(n = sum(x15_vuotta_täyttänyt_väestö_31_12), .groups = "drop_last") |> 
     mutate(pct = n / sum(n)) |> 
     ungroup()
 
