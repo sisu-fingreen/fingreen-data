@@ -202,7 +202,10 @@ create_inputs_economy_consumption_coicop_nace_bridge <- function(raw_data_path, 
     stop("Final demand data (hh_fd_pp) was not mapped correctly, check the mapping")
   }
 
-  row_totals_unscaled <- hh_fd_pp_by_fingreen_industry$hh_fd_pp * 1e6
+  # Round so that floating point inaccuracies don't throw off the sum
+  # of row totals and col totals when scaling in the next step.
+  # If there is even a miniscule difference, the Ifpf-function won't work properly
+  row_totals_unscaled <- round(hh_fd_pp_by_fingreen_industry$hh_fd_pp * 1e6, digits = 0)
 
   # scale the row totals to match the col totals, as was done by Pisa team
   # The difference is small, so it is not too significant which one we scale
@@ -241,13 +244,17 @@ create_inputs_economy_consumption_coicop_nace_bridge <- function(raw_data_path, 
 
   convergence_criterion <- 5e-7 # if the Ipfp is not converging, adjust convergence criterion
 
-  # handle warnings as errors for the Ipfp fitting
-  orig_opts <- options()
-  options(warn=2) # throw error for warnings
+  # Handle warnings as errors for the Ipfp fitting so we don't continue if something weird happens,
+  # Eg. the function warns and shifts to probabilities in the output if row totals and col totals don't match
+  ras_result <- tryCatch(
+    expr = {
+    Ipfp(matrix_to_adjust, list(1,2), list(row_totals, col_totals), iter = 1e4, tol = convergence_criterion)
+    },
+    warning = function(w) {
+      stop("Converted from warning: ", conditionMessage(w))
+    }
+  )
 
-  ras_result <- Ipfp(matrix_to_adjust, list(1,2), list(row_totals, col_totals), iter = 1e4, tol = convergence_criterion)
-
-  options(orig_opts) # back to original options and warning behaviour
 
   #Extract the balanced matrix 
   balanced_matrix <- ras_result$x.hat
