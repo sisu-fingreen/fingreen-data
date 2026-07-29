@@ -176,6 +176,7 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
   )
 
   p_labour_productivity_changes <- labour_productivity %>% 
+    filter(year != min(year)) |> 
     ggplot(aes(year, d_labour_productivity_output_eur_per_hour)) +
     geom_line() +
     facet_wrap(~fingreen_industry_code)
@@ -188,6 +189,7 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
   )
 
   p_labour_productivity_growth <- labour_productivity %>% 
+    filter(year != min(year)) |> 
     ggplot(aes(year, g_labour_productivity)) +
     geom_line() +
     facet_wrap(~fingreen_industry_code)
