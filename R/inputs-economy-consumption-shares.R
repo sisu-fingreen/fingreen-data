@@ -72,7 +72,7 @@ create_inputs_economy_consumption_shares <- function(raw_data_path, n_households
     left_join(n_households, by = c("geo", "year")) |> 
     mutate(expenditure = n_households / 5 * values) |> 
     group_by(geo, year) |> 
-    summarise(total_pps_expenditure = sum(expenditure)) |> 
+    summarise(total_pps_expenditure = sum(expenditure), .groups = "drop") |> 
     select(geo, year, total_pps_expenditure)
 
   total_consumption_expenditure <- expenditure_by_coicop |> 
@@ -86,7 +86,7 @@ create_inputs_economy_consumption_shares <- function(raw_data_path, n_households
     select(geo, year, pps_to_eur_conversion_factor)
 
   mean_expenditure_by_quintile_eur <- mean_expenditure_by_quintile |> 
-    left_join(pps_to_eur_conversion_factor) |> 
+    left_join(pps_to_eur_conversion_factor, by = c("geo", "year")) |> 
     mutate(mean_expenditure_eur = values * pps_to_eur_conversion_factor) |> 
     mutate(quintile = factor(quant_inc, levels = paste0("QU", 1:5))) |> 
     select(geo, year, quintile, mean_expenditure_eur)
