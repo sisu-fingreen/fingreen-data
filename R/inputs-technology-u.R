@@ -273,12 +273,26 @@ create_inputs_technology_u <- function(raw_data_path, na_data_path, global_param
       " Please check data, and if required, add exception to shares_of_new_capital in the code."
     )
   }
-
+  
   technical_coefficient_growth_normalized <- technical_coefficient_growth %>% 
     inner_join(shares_of_new_capital, by = c("geo", "time", "fingreen_industry_code_use" = "fingreen_industry_code")) %>% 
-    mutate(psi_a = g_technical_coefficient / share_of_new_capital)
+    mutate(
+      psi_a = g_technical_coefficient / share_of_new_capital,
+      # transform to compress the long tails of the distributions
+      arcsinh_psi_a = asinh(0.5 * psi_a)
+    )
 
   # distribution plots ------------------------------------------------------
+  
+  # technical_coefficient_growth_normalized |> 
+  #   ggplot(aes(psi_a)) +
+  #   geom_density() +
+  #   facet_wrap(~fingreen_industry_code_use, scales = "free")
+
+  # technical_coefficient_growth_normalized |> 
+  #   ggplot(aes(arcsinh_psi_a)) +
+  #   geom_density() +
+  #   facet_wrap(~fingreen_industry_code_use, scales = "free")
 
   # technical_coefficient_growth_normalized %>% 
   #   ggplot(aes(psi_a)) +
@@ -462,9 +476,9 @@ create_inputs_technology_u <- function(raw_data_path, na_data_path, global_param
     res <- df %>%
       group_by(geo, fingreen_industry_code_ava, fingreen_industry_code_use) %>% 
       summarise(
-        mean = mean(psi_a),
-        median = median(psi_a),
-        sample_sd = sd(psi_a),
+        mean = mean(arcsinh_psi_a),
+        median = median(arcsinh_psi_a),
+        sample_sd = sd(arcsinh_psi_a),
         n = n(),
         .groups = "drop"
       ) %>% 
