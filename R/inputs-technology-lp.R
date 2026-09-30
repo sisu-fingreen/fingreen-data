@@ -113,7 +113,9 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
     "source-data/mappings/eurostat-nama-industry-to-fingreen-industry-map.xlsx",
     sheet = "nama"
   ) |> 
-    filter(relationship != "extra")
+    filter(relationship != "extra") |> 
+    # We're not modelling U
+    filter(fingreen_industry_code != "U")
 
   # process ------------------------------------------------------------------
 
@@ -252,9 +254,16 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
     ) %>%
     data.table::transpose(keep.names = "measure", make.names = "fingreen_industry_code")
 
+  lp_change_limits <- all_labour_productivity_changes_2010eur |> 
+    summarise(
+      q05 = quantile(arcsinh_psi_lambda, 0.05),
+      q95 = quantile(arcsinh_psi_lambda, 0.95)
+    ) |> 
+    select(q05, q95)
+
   # export -------------------------------------------------------------------
   
-  datasets_to_write <- c("lp_norm")
+  datasets_to_write <- c("lp_norm", "lp_change_limits")
 
   output_path <- paste0(results_dir, "lp.ods")
 

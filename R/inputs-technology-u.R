@@ -361,7 +361,9 @@ create_inputs_technology_u <- function(raw_data_path, na_data_path, global_param
     distinct()
 
   technical_coefficient_growth_filtered <- technical_coefficient_growth_normalized %>% 
-    anti_join(outlier_ids, by = c("geo", "time", "fingreen_industry_code_use"))
+    anti_join(outlier_ids, by = c("geo", "time", "fingreen_industry_code_use")) |> 
+      # We're not modelling U
+    filter(fingreen_industry_code_ava != "U")
 
   # total intermediate input changes ----------------------------------------
 
@@ -495,6 +497,13 @@ create_inputs_technology_u <- function(raw_data_path, na_data_path, global_param
 
   u_norm_long <- calculate_u_stats(technical_coefficient_growth_filtered)
 
+  u_change_limits <- technical_coefficient_growth_filtered |> 
+    summarise(
+      q05 = quantile(arcsinh_psi_a, 0.05),
+      q95 = quantile(arcsinh_psi_a, 0.95)
+    ) |> 
+    select(q05, q95)
+
   # results -----------------------------------------------------------------
 
   prepare_results <- function(df){
@@ -508,8 +517,9 @@ create_inputs_technology_u <- function(raw_data_path, na_data_path, global_param
   res_list <- list()
 
   res_list[["u_norm"]] <- prepare_results(u_norm_long)
+  res_list[["u_change_limits"]] <- u_change_limits
 
-  output_path <- paste0(results_dir, "u-norm.ods")
+  output_path <- paste0(results_dir, "u.ods")
 
   readODS::write_ods(res_list, path = output_path)
 
