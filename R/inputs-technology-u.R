@@ -273,12 +273,26 @@ create_inputs_technology_u <- function(raw_data_path, na_data_path, global_param
       " Please check data, and if required, add exception to shares_of_new_capital in the code."
     )
   }
-
+  
   technical_coefficient_growth_normalized <- technical_coefficient_growth %>% 
     inner_join(shares_of_new_capital, by = c("geo", "time", "fingreen_industry_code_use" = "fingreen_industry_code")) %>% 
-    mutate(psi_a = g_technical_coefficient / share_of_new_capital)
+    mutate(
+      psi_a = g_technical_coefficient / share_of_new_capital,
+      # transform to compress the long tails of the distributions
+      arcsinh_psi_a = asinh(0.5 * psi_a)
+    )
 
   # distribution plots ------------------------------------------------------
+  
+  # technical_coefficient_growth_normalized |> 
+  #   ggplot(aes(psi_a)) +
+  #   geom_density() +
+  #   facet_wrap(~fingreen_industry_code_use, scales = "free")
+
+  # technical_coefficient_growth_normalized |> 
+  #   ggplot(aes(arcsinh_psi_a)) +
+  #   geom_density() +
+  #   facet_wrap(~fingreen_industry_code_use, scales = "free")
 
   # technical_coefficient_growth_normalized %>% 
   #   ggplot(aes(psi_a)) +
@@ -347,7 +361,9 @@ create_inputs_technology_u <- function(raw_data_path, na_data_path, global_param
     distinct()
 
   technical_coefficient_growth_filtered <- technical_coefficient_growth_normalized %>% 
-    anti_join(outlier_ids, by = c("geo", "time", "fingreen_industry_code_use"))
+    anti_join(outlier_ids, by = c("geo", "time", "fingreen_industry_code_use")) |> 
+      # We're not modelling U
+    filter(fingreen_industry_code_ava != "U")
 
   # total intermediate input changes ----------------------------------------
 
@@ -462,9 +478,9 @@ create_inputs_technology_u <- function(raw_data_path, na_data_path, global_param
     res <- df %>%
       group_by(geo, fingreen_industry_code_ava, fingreen_industry_code_use) %>% 
       summarise(
-        mean = mean(psi_a),
-        median = median(psi_a),
-        sample_sd = sd(psi_a),
+        mean = mean(arcsinh_psi_a),
+        median = median(arcsinh_psi_a),
+        sample_sd = sd(arcsinh_psi_a),
         n = n(),
         .groups = "drop"
       ) %>% 
@@ -481,6 +497,13 @@ create_inputs_technology_u <- function(raw_data_path, na_data_path, global_param
 
   u_norm_long <- calculate_u_stats(technical_coefficient_growth_filtered)
 
+  u_change_limits <- technical_coefficient_growth_filtered |> 
+    summarise(
+      q05 = quantile(arcsinh_psi_a, 0.05),
+      q95 = quantile(arcsinh_psi_a, 0.95)
+    ) |> 
+    select(q05, q95)
+
   # results -----------------------------------------------------------------
 
   prepare_results <- function(df){
@@ -494,8 +517,9 @@ create_inputs_technology_u <- function(raw_data_path, na_data_path, global_param
   res_list <- list()
 
   res_list[["u_norm"]] <- prepare_results(u_norm_long)
+  res_list[["u_change_limits"]] <- u_change_limits
 
-  output_path <- paste0(results_dir, "u-norm.ods")
+  output_path <- paste0(results_dir, "u.ods")
 
   readODS::write_ods(res_list, path = output_path)
 

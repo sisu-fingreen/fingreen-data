@@ -113,7 +113,9 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
     "source-data/mappings/eurostat-nama-industry-to-fingreen-industry-map.xlsx",
     sheet = "nama"
   ) |> 
-    filter(relationship != "extra")
+    filter(relationship != "extra") |> 
+    # We're not modelling U
+    filter(fingreen_industry_code != "U")
 
   # process ------------------------------------------------------------------
 
@@ -215,7 +217,9 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
   all_labour_productivity_changes <- labour_productivity %>% 
     left_join(shares_of_new_capital, by = c("fingreen_industry_code", "year")) %>% 
     mutate(
-      psi_lambda = g_labour_productivity / share_of_new_capital
+      psi_lambda = g_labour_productivity / share_of_new_capital,
+      # transform to compress the long tails of the distributions
+      arcsinh_psi_lambda = asinh(psi_lambda)
     ) %>% 
     filter(year >= 1996L & !is.na(psi_lambda))
 
@@ -244,15 +248,22 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
   lp_norm <- all_labour_productivity_changes_2010eur %>% 
     group_by(fingreen_industry_code) %>% 
     summarise(
-      mean = mean(psi_lambda),
-      median = median(psi_lambda),
-      sd = sd(psi_lambda)
+      mean = mean(arcsinh_psi_lambda),
+      median = median(arcsinh_psi_lambda),
+      sd = sd(arcsinh_psi_lambda)
     ) %>%
     data.table::transpose(keep.names = "measure", make.names = "fingreen_industry_code")
 
+  lp_change_limits <- all_labour_productivity_changes_2010eur |> 
+    summarise(
+      q05 = quantile(arcsinh_psi_lambda, 0.05),
+      q95 = quantile(arcsinh_psi_lambda, 0.95)
+    ) |> 
+    select(q05, q95)
+
   # export -------------------------------------------------------------------
   
-  datasets_to_write <- c("lp_norm")
+  datasets_to_write <- c("lp_norm", "lp_change_limits")
 
   output_path <- paste0(results_dir, "lp.ods")
 
