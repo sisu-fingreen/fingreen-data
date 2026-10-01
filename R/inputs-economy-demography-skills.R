@@ -12,12 +12,13 @@ pull_raw_data_inputs_economy_demography <- function(global_params) {
   if(!identical(geo, "FI")){
     stop("Other countries than FI not yet implemented for demography skills data")
   }
+  current_year <- Sys.Date() |> format.Date(format = "%Y") |> as.integer()
   # Satfin data is correct, eurostat is not (for Finland). Get the data from statfin, or your relevant national institution. Or at least verify
   # that eurostat data matches it.
   population_by_age_gender_skill <- pxweb::pxweb_get_data(
     url = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/vkour/12bq.px",
     query = list(
-      timeperiod_y = as.character(base_year),
+      timeperiod_y = as.character(base_year:(current_year - 2)),
       alue_23_20260101 = "SSS",
       ikaryhma_10_20180101 = c("15-19", "20-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80-"),
       sukupuoli_9_20180101 = c("SSS", "1", "2"),
@@ -72,6 +73,7 @@ create_inputs_economy_demography_skills <- function(raw_data_path, global_params
 
   skill_share_by_gender_age <- population_by_age_gender_skill |> 
     mutate(
+      year = as.integer(vuosi),
       gender = factor(sukupuoli, levels = c("Naiset", "Miehet", "Yhteensä"), labels = c("female", "male", "total")),
       age_class = replace_values(
         ikä,
@@ -87,13 +89,21 @@ create_inputs_economy_demography_skills <- function(raw_data_path, global_params
         as.character(5:8) ~ "high"
       ) |> factor(levels = c("low", "middle", "high"))
     ) |> 
-    group_by(age_class, gender, skill_level) |> 
+    group_by(year, age_class, gender, skill_level) |> 
     summarise(n = sum(x15_vuotta_täyttänyt_väestö_31_12), .groups = "drop_last") |> 
     mutate(pct = n / sum(n)) |> 
     ungroup()
 
-  res <- skill_share_by_gender_age |> 
+  res_base_year <- skill_share_by_gender_age |> 
+    filter(year == global_params$base_year) |> 
+    select(-n, -year) |> 
+    tidyr::pivot_wider(names_from = age_class, values_from = pct) |> 
+    mutate(`0-14` = 0) |>
+    relocate(`0-14`, .after = skill_level)
+
+  res_calibration_timeseries <- skill_share_by_gender_age |> 
     select(-n) |> 
+    filter(gender != "total") |> 
     tidyr::pivot_wider(names_from = age_class, values_from = pct) |> 
     mutate(`0-14` = 0) |>
     relocate(`0-14`, .after = skill_level)
@@ -101,9 +111,11 @@ create_inputs_economy_demography_skills <- function(raw_data_path, global_params
   # write results ----------------------------------------------------------
   
   output_path <- paste0(results_dir, "initial-skill-share-by-age-gender.ods")
+  
+  datasets_to_write <- c("res_base_year", "res_calibration_timeseries")
 
   readODS::write_ods(
-    x = res,
+    x = mget(datasets_to_write),
     path = output_path
   )
   
