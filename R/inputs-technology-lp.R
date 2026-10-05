@@ -260,10 +260,23 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
       q95 = quantile(arcsinh_psi_lambda, 0.95)
     ) |> 
     select(q05, q95)
+  
+  lp_for_calibration <- labour_productivity |> 
+    filter(between(year, 2010, 2024)) |> 
+    mutate(
+      labour_productivity_output_eur_per_hour = convert_eur_value_between_years(
+        x = labour_productivity_output_eur_per_hour,
+        from = 2020L, # The raw data is chain linked volumes, 2020
+        to = base_year
+      )
+    ) |> 
+    arrange(fingreen_industry_code) |> 
+    select(fingreen_industry_code, year, labour_productivity_output_eur_per_hour) |> 
+    tidyr::pivot_wider(names_from = year, values_from = labour_productivity_output_eur_per_hour)
 
   # export -------------------------------------------------------------------
   
-  datasets_to_write <- c("lp_norm", "lp_change_limits")
+  datasets_to_write <- c("lp_norm", "lp_change_limits", "lp_for_calibration")
 
   output_path <- paste0(results_dir, "lp.ods")
 
