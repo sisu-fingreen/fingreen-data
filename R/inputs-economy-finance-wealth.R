@@ -149,7 +149,7 @@ create_inputs_economy_finance_wealth <- function(raw_data_path, global_params) {
   catn("WID data is in last year currency, which is then converted to base year currency value")
   catn(wid_year, " is the inferred currency value year for WID data. Verify this is correct by visiting https://wid.world/data/")
   per_adult_wealth_base_year_price <- per_adult_wealth_last_year_price |> 
-    mutate(value = convert_eur_value_between_years(value, from = wid_year, to = base_year))
+    mutate(value = convert_eur_value_between_years(value, from = wid_year, to = base_year, geo = geo))
 
   # write results ----------------------------------------------------------
 
