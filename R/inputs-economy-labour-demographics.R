@@ -8,6 +8,12 @@ pull_raw_data_inputs_economy_labour_demographics  <- function(
 
   base_year <- global_params$base_year
   geo <- global_params$geo
+  
+  current_year <- Sys.Date() |> format.Date(format = "%Y") |> as.integer()
+  if(base_year > current_year - 2L) {
+    stop("Cannot create data newer than current year - 2")
+  }
+  years <- (base_year - 1L):(current_year - 2L)
 
   working_directory <- getwd()
 
@@ -19,7 +25,7 @@ pull_raw_data_inputs_economy_labour_demographics  <- function(
     time_format = "num",
     filters = list(
       geo = geo,
-      time = base_year,
+      time = years,
       na_item = "EMP_DC",
       unit = "THS_PER"
     )
@@ -34,49 +40,26 @@ pull_raw_data_inputs_economy_labour_demographics  <- function(
   )
   validate_schema(employed_by_industry, employed_by_industry_schema, "employed_by_industry")
 
-  employed_by_sex_and_industry_lvl1 <- eurostat::get_eurostat(
-      "lfsa_egan2",
-      time_format = "num",
-      filters = list(
-          geo = geo,
-          time = base_year,
-          age = "Y15-64",
-          freq = "A",
-          unit = "THS_PER",
-          sex = c("T", "F", "M")
-      )
-  )    
-  employed_by_sex_and_industry_lvl1_schema <- structure(
+  employed_by_sex_and_industry <- pxweb::pxweb_get_data(
+    url = "https://pxdata.stat.fi/PxWeb/api/v1/en/StatFin/tyokay/115i.px",
+    query = list(
+      alue_23_20260101 = "SSS", # This means area is all of Finland
+      toimiala_108_20230101 = "*", # All industries
+      timeperiod_y = as.character(years),
+      sukupuoli_9_20180101 = c("SSS", "1", "2"), # sex: all, 1=male, 2=female
+      contentscode = "*"
+    ),
+    variable.value.type = "code"
+  )
+  employed_by_sex_and_industry_schema <- structure(
     list(
-      column_name = c('freq', 'unit', 'sex', 'age', 'nace_r2', 'geo', 'time', 'values'),
-      column_type = c('character', 'character', 'character', 'character', 'character', 'character', 'numeric', 'numeric')
+      column_name = c('Area (residence)', 'Industry', 'Year', 'Sex', 'Employed'),
+      column_type = c('character', 'character', 'character', 'character', 'numeric')
     ),
     class = 'data.frame',
-    row.names = c('freq', 'unit', 'sex', 'age', 'nace_r2', 'geo', 'time', 'values')
+    row.names = c('Area (residence)', 'Industry', 'Year', 'Sex', 'Employed')
   )
-  validate_schema(employed_by_sex_and_industry_lvl1, employed_by_sex_and_industry_lvl1_schema, "employed_by_sex_and_industry_lvl1")
-
-  employed_by_sex_and_industry_lvl2 <- eurostat::get_eurostat(
-      "lfsa_egan22d",
-      time_format = "num",
-      filters = list(
-          geo = geo,
-          time = base_year,
-          age = "Y15-64",
-          freq = "A",
-          unit = "THS_PER",
-          sex = c("T", "F", "M")
-      )
-  )
-  employed_by_sex_and_industry_lvl2_schema <- structure(
-    list(
-      column_name = c('freq', 'unit', 'age', 'sex', 'nace_r2', 'geo', 'time', 'values'),
-      column_type = c('character', 'character', 'character', 'character', 'character', 'character', 'numeric', 'numeric')
-    ),
-    class = 'data.frame',
-    row.names = c('freq', 'unit', 'age', 'sex', 'nace_r2', 'geo', 'time', 'values')
-  )
-  validate_schema(employed_by_sex_and_industry_lvl2, employed_by_sex_and_industry_lvl2_schema, "employed_by_sex_and_industry_lvl2")
+  validate_schema(employed_by_sex_and_industry, employed_by_sex_and_industry_schema, "employed_by_sex_and_industry")
 
   skill_levels <- c("low" = "ED0-2", "mid" = "ED3_4", "high" = "ED5-8")
 
@@ -85,7 +68,7 @@ pull_raw_data_inputs_economy_labour_demographics  <- function(
     time_format = "num",
     filters = list(
       geo = geo,
-      time = c(base_year, imputation_year),
+      time = years,
       isced11 = skill_levels,
       age = "Y15-64",
       sex = "T"
@@ -113,7 +96,7 @@ pull_raw_data_inputs_economy_labour_demographics  <- function(
   employed_persons_skill_shares <- pxweb::pxweb_get_data(
     url = "https://statfin.stat.fi/PxWeb/api/v1/en/StatFin/tyti/13av.px",
     query = list(
-      timeperiod_y = as.character(base_year),
+      timeperiod_y = as.character(years),
       sukupuoli_9_20180101 = c("1", "2"),
       koulutusaste_17_20180101 = education_levels_statfin,
       contentscode = "*"
@@ -131,8 +114,7 @@ pull_raw_data_inputs_economy_labour_demographics  <- function(
 
   datasets_to_write <- c(
     "employed_by_industry",
-    "employed_by_sex_and_industry_lvl1",
-    "employed_by_sex_and_industry_lvl2",
+    "employed_by_sex_and_industry",
     "skill_share_by_industry",
     "employed_persons_skill_shares"
   )
@@ -185,6 +167,8 @@ create_inputs_economy_labour_demographics <- function(
   geo <- global_params$geo
   base_year <- global_params$base_year |> as.integer()
 
+  current_year <- Sys.Date() |> format.Date(format = "%Y") |> as.integer()
+
   # employed by sex and industry -------------------------------------------
 
   # We get the data on nace r2 1 and 2 digit level industry classifications
@@ -192,100 +176,43 @@ create_inputs_economy_labour_demographics <- function(
   # to fingreen industry level
 
   # get_n_employed_by_fingreen_industry_and_sex
-  employed_by_sex_and_industry_lvl1 <- readODS::read_ods(raw_data_path, sheet = "employed_by_sex_and_industry_lvl1") |>
-    select(-unit, -freq, -age, -geo, -time) |> 
-    # U ACTIVITIES OF EXTRATERRITORIAL ORGANISATIONS AND BODIES is generally not needed, and there is no data
-    filter(!nace_r2 %in% c("TOTAL", "NRP", "U")) |> 
-    mutate(
-      sex = factor(sex, levels = c("T", "F", "M"), labels = c("total", "female", "male")),
-      values = 1000 * values
-    ) |> 
-    tidyr::pivot_wider(names_from = sex, values_from = values) |> 
-    fix_names()
-    
-  employed_by_sex_and_industry_lvl1_imputed <- employed_by_sex_and_industry_lvl1 |> 
-    mutate(
-      male = coalesce(male, total - female),
-      female = coalesce(female, total - male)
-    )
 
-  employed_by_sex_and_industry_lvl2 <- readODS::read_ods(raw_data_path, sheet = "employed_by_sex_and_industry_lvl2") |> 
-    select(-unit, -freq, -age, -geo, -time) |> 
-  # No data for (and not needed) T98 Undifferentiated goods- and services-producing activities of private households for own use
-    filter(!nace_r2 %in% c("TOTAL", "NRP", "UNK", "T98", "U99")) |> 
-    mutate(
-      sex = factor(sex, levels = c("T", "F", "M"), labels = c("total", "female", "male")),
-      values = 1000 * values
-    ) |> 
-    tidyr::pivot_wider(names_from = sex, values_from = values) |> 
-    fix_names()
-
-  employed_by_sex_and_industry_lvl2_imputed <- employed_by_sex_and_industry_lvl2 |> 
-    # impute the parent level information if the male share is missing from a detailed industry
-    mutate(nace_lvl1 = substr(nace_r2, 1, 1)) |> 
-    left_join(
-      rename(employed_by_sex_and_industry_lvl1_imputed, total_lvl1 = total, male_lvl1 = male, female_lvl1 = female),
-      by = c("nace_lvl1" = "nace_r2")
-    ) |> 
-    mutate(
-      male = coalesce(male, total - female, total * male_lvl1 / total_lvl1),
-      female = coalesce(female, total - male)
-    )
-
-  nace_r2_1_and_2_digit_to_fingreen_industry_map <- readxl::read_xlsx(
-      "source-data/mappings/nace-r2-1-and-2-digit-to-fingreen-industry-map.xlsx"
+  employed_by_industry <- readODS::read_ods(raw_data_path, sheet = "employed_by_industry")
+  
+  employed_by_sex_and_industry <- readODS::read_ods(raw_data_path, sheet = "employed_by_sex_and_industry") |> 
+    fix_names() |> 
+    rename(time = year) |> 
+    mutate(sex = factor(sex, levels = c("2", "1", "SSS"), labels = c("female", "male", "total")))
+  
+  statfin_to_fingreen_industry_map <- readODS::read_ods(
+    "source-data/mappings/statfin-labour-stats-tol-2008-to-fingreen-industry-map.ods"
   )
 
-  employed_by_sex_and_fingreen_industry <- employed_by_sex_and_industry_lvl1 |> 
-    bind_rows(employed_by_sex_and_industry_lvl2_imputed) |> 
-    right_join(nace_r2_1_and_2_digit_to_fingreen_industry_map, by = "nace_r2", relationship = "one-to-many") |> 
-    group_by(fingreen_industry_code) |> 
+  employed_by_sex_and_fingreen_industry <- employed_by_sex_and_industry |> 
+    left_join(
+      statfin_to_fingreen_industry_map,
+      by = c("industry" = "tol_2008"),
+      relationship = "many-to-many"
+    ) |> 
+    filter(relationship != "extra", sex != "total") |> 
+    group_by(time, fingreen_industry_code, sex) |> 
     summarise(
-      total = sum(total * coalesce(disaggregation_coefficient, 1)),
-      female = sum(female * coalesce(disaggregation_coefficient, 1)),
-      male = sum(male * coalesce(disaggregation_coefficient, 1)),
+      n_employed = sum(employed * coalesce(disaggregation_coefficient, 1)),
       .groups = "drop"
-    ) |> 
-    tidyr::pivot_longer(cols = all_of(c("total", "female", "male")), names_to = "sex", values_to = "n_employed")
+    )
 
-  # impute missing totals using the parent industries if only
-  # one subindustry is missing
-
-  employed_by_sex_and_industry_lvl1_long <- employed_by_sex_and_industry_lvl1_imputed |> 
-    tidyr::pivot_longer(cols = all_of(c("total", "female", "male")), names_to = "sex", values_to = "n_employed_lvl1")
-
-  employed_by_sex_and_fingreen_industry_imputed <- employed_by_sex_and_fingreen_industry |> 
-    mutate(nace_lvl1 = substr(fingreen_industry_code, 1, 1)) |> 
-    left_join(employed_by_sex_and_industry_lvl1_long, by = c("nace_lvl1" = "nace_r2", "sex")) |> 
-    group_by(sex, nace_lvl1) |> 
-    mutate(
-      n_subindustries_missing = sum(is.na(n_employed)),
-      n_employed_nonmissing_subindustries = sum(n_employed, na.rm = T)
-    ) |> 
-    ungroup() |> 
-    mutate(
-      n_employed = coalesce(
-        n_employed,
-        if_else(n_subindustries_missing == 1, n_employed_lvl1 - n_employed_nonmissing_subindustries, NA)
-      )
-    ) |> 
-    filter(sex != "total") |> # from here on we are only concerned with data by sex
-    select(fingreen_industry_code, sex, n_employed)
-
-  n_missing_employed_by_sex_and_fingreen_industry <- sum(is.na(employed_by_sex_and_fingreen_industry_imputed$n_employed))
+  n_missing_employed_by_sex_and_fingreen_industry <- sum(is.na(employed_by_sex_and_fingreen_industry$n_employed))
   if(!identical(0L, n_missing_employed_by_sex_and_fingreen_industry)) {
     stop("Missing values were left in the number of employed persons per sex and industry. Deduction not successful.")
   }
-  
+
   # We have to use national accounting (NA) for industry totals, but it does not have sex, so use the above
   # to calculate male share, and then construct the by-industry-and-sex data from the by-industry NA totals.
 
-  male_share_by_fingreen_industry <- employed_by_sex_and_fingreen_industry_imputed |> 
+  male_share_by_fingreen_industry <- employed_by_sex_and_fingreen_industry |> 
     tidyr::pivot_wider(names_from = "sex", values_from = n_employed) |> 
     mutate(male_share = male / (male + female)) |> 
-    select(fingreen_industry_code, male_share)
-
-  employed_by_industry <- readODS::read_ods(raw_data_path, sheet = "employed_by_industry")
+    select(time, fingreen_industry_code, male_share)
 
   eurostat_nama_industry_to_fingreen_industry_map <- readxl::read_xlsx(
     "source-data/mappings/eurostat-nama-industry-to-fingreen-industry-map.xlsx",
@@ -296,16 +223,16 @@ create_inputs_economy_labour_demographics <- function(
     inner_join(
       filter(eurostat_nama_industry_to_fingreen_industry_map, relationship != "extra"),
       by = c("nace_r2" = "eurostat_nace_r2"),
-      relationship = "one-to-many"
+      relationship = "many-to-many"
     ) |> 
-    group_by(fingreen_industry_code) |> 
+    group_by(time,fingreen_industry_code) |> 
     summarise(
       n_employed = 1000 * sum(values * coalesce(disaggregation_coefficient, 1)),
       .groups = "drop"
     )
 
   employed_by_sex_and_fingreen_industry_calculated <- employed_by_fingreen_industry |> 
-    left_join(male_share_by_fingreen_industry, by = "fingreen_industry_code") |> 
+    left_join(male_share_by_fingreen_industry, by = c("time", "fingreen_industry_code")) |> 
     mutate(
       female = (1- male_share) * n_employed,
       male = male_share * n_employed
@@ -322,38 +249,53 @@ create_inputs_economy_labour_demographics <- function(
   # on the other hand per skill, then it should not matter too much.
 
   skill_share_by_industry <- readODS::read_ods(raw_data_path, sheet = "skill_share_by_industry") |> 
-    filter(nace_r2 != "U") # No data for U industry, and none needed
+    filter(!nace_r2 %in% c("U", "NRP")) # No data for U industry, and none needed
 
   eurostat_edat_to_fingreen_industry_map <- readxl::read_xlsx(
     path = "source-data/mappings/nace-r2-aggregate-to-fingreen-industry-map.xlsx"
   )
 
-  industries_w_missing_data <- skill_share_by_industry |> 
-    filter(time == base_year) |> 
-    group_by(nace_r2) |> 
+  inds_and_years_w_missing_data <- skill_share_by_industry |> 
+    group_by(time, nace_r2) |> 
     summarise(n_complete_obs = sum(!is.na(values)), .groups = "drop") |> 
     filter(n_complete_obs < 2)
+  
+  missing_data_n <- nrow(inds_and_years_w_missing_data)
 
-  imputed_from_other_year <- skill_share_by_industry |> 
-    filter(time == imputation_year & nace_r2 %in% industries_w_missing_data$nace_r2) |> 
-    group_by(nace_r2) |> 
+  values_for_imputing <- skill_share_by_industry |> 
+    filter(nace_r2 %in% inds_and_years_w_missing_data$nace_r2) |> 
+    group_by(time, nace_r2) |> 
     mutate(n_complete_obs = sum(!is.na(values))) |> 
+    ungroup() |> 
+    # need at least two of the 3 skill categories to infer all 3
+    filter(n_complete_obs > 1) |> 
+    group_by(nace_r2) |> 
+    # pick the data from the first suitable year
+    filter(time == min(time)) |> 
     ungroup()
 
-  if(min(imputed_from_other_year$n_complete_obs < 2)) {
-    cat("Imputation year did not have enough data.")
-    print(imputed_from_other_year)
-    stop("Imputation error. Try another imputation year.")
+  if(min(values_for_imputing$n_complete_obs) < 2 & (missing_data_n > 0)) {
+    catn("There were", missing_data_n, "industry+year combinations with missing values.")
+    catn("Did not have enough data for imputation. Available data below.")
+    print(values_for_imputing)
+    stop("Imputation error. You need to fix the data manually or come up with another solution.")
   }
 
+  imputed_from_other_year <- left_join(
+    select(inds_and_years_w_missing_data, time, nace_r2),
+    select(values_for_imputing, -time),
+    by = "nace_r2",
+    relationship = "many-to-many"
+  )
+
   skill_share_by_industry_cleaned <- skill_share_by_industry |> 
-    filter(time == base_year & !nace_r2 %in% industries_w_missing_data$nace_r2) |> 
+    anti_join(imputed_from_other_year, by = c("time", "nace_r2")) |> 
     bind_rows(imputed_from_other_year) |> 
     mutate(
       skill_level = factor(isced11, levels = skill_levels, labels = names(skill_levels))
     ) |> 
-    group_by(nace_r2) |> 
-    arrange(nace_r2, desc(values)) |> 
+    group_by(time, nace_r2) |> 
+    arrange(time, nace_r2, desc(values)) |> 
     mutate(
       # for those industries that have data for 2 skill classes (last one is missing),
       # allocate the missing share from the first 2
@@ -367,7 +309,7 @@ create_inputs_economy_labour_demographics <- function(
       eurostat_edat_to_fingreen_industry_map, by = c("nace_r2"),
       relationship = "many-to-many"
     ) |> 
-    group_by(fingreen_industry_code, skill_level) |> 
+    group_by(time, fingreen_industry_code, skill_level) |> 
       # in cases where fingreen industry is aggregated from multiple industries in the data, use
     # the shares in the eurostat_edat_to_fingreen_industry_map to calculate a weighted average
     summarise(
@@ -387,6 +329,7 @@ create_inputs_economy_labour_demographics <- function(
         as.data.frame() |> 
         fix_names() |> 
         mutate(
+          time = as.integer(year),
           skill_level = case_when(
             # The names in the data are long but this does the job
             substr(educational_level, 1, 1) == 9 ~ "low",
@@ -395,13 +338,13 @@ create_inputs_economy_labour_demographics <- function(
           ) |> factor(levels = c("low", "mid", "high")),
           sex = replace_values(sex, "Males" ~ "male", "Females" ~ "female")
         ) |> 
-        group_by(sex) |> 
+        group_by(time, sex) |> 
         mutate(share_of_employed_persons_by_sex = employed_1000_persons / sum(employed_1000_persons)) |> 
         ungroup() |> 
-        arrange(sex, skill_level)
+        arrange(time, sex, skill_level)
       
       res <- employed_persons_skill_shares |> 
-        select(sex, skill_level, share_of_employed_persons_by_sex)
+        select(time, sex, skill_level, share_of_employed_persons_by_sex)
       return(res)
     } else {
       # We can get the data from eurostat lfsa_egaed table, but at least for Finland
@@ -413,46 +356,48 @@ create_inputs_economy_labour_demographics <- function(
   proper_skill_shares <- calculate_proper_skill_shares(raw_data_path)
 
   n_employed_by_sex <- employed_by_sex_and_fingreen_industry_calculated |> 
-    group_by(sex) |> 
-    summarise(n_employed_by_sex = sum(n_employed))
+    group_by(time, sex) |> 
+    summarise(n_employed_by_sex = sum(n_employed), .groups = "drop")
 
   n_employed_by_sex_and_skill <- proper_skill_shares |> 
-    left_join(n_employed_by_sex, by = c("sex")) |> 
+    left_join(n_employed_by_sex, by = c("time", "sex")) |> 
     mutate(n_employed_by_sex_and_skill = n_employed_by_sex * share_of_employed_persons_by_sex)
 
   # This is how we get a starting point of employed per sex, skill and industry, but
   # we have to correct it to get sensible total ppl per sex, skill and industry
   employed_by_sex_and_fingreen_industry_and_skill <- employed_by_sex_and_fingreen_industry_calculated |> 
-    left_join(skill_share_by_fingreen_industry, by = c("fingreen_industry_code"), relationship = "many-to-many") |> 
+    left_join(skill_share_by_fingreen_industry, by = c("time", "fingreen_industry_code"), relationship = "many-to-many") |> 
     mutate(n_employed = n_employed * skill_share)
 
-  correct_employed_demographics_for_sex <- function(this_sex, employed_by_sex_and_fingreen_industry_and_skill) {
+  correct_employed_demographics_for_year_and_sex <- function(this_year, this_sex, employed_by_sex_and_fingreen_industry_and_skill) {
+
+    # catn(this_year, this_sex) # This can be handy for debugging
 
     employed_demographics_initial <- employed_by_sex_and_fingreen_industry_and_skill |> 
-      filter(sex == this_sex) |> 
-      select(skill_level, fingreen_industry_code, n_employed) |> 
+      filter(time == this_year, sex == this_sex) |> 
+      select(time, skill_level, fingreen_industry_code, n_employed) |> 
       tidyr::pivot_wider(names_from = fingreen_industry_code, values_from = n_employed) |> 
       arrange(skill_level)
 
     n_employed_matrix <- employed_demographics_initial |> 
-      select(-skill_level) |> 
+      select(-time, -skill_level) |> 
       as.matrix()
 
-    desired_row_sums <- n_employed_by_sex_and_skill |> filter(sex == this_sex) |> pull(n_employed_by_sex_and_skill)
+    desired_row_sums <- n_employed_by_sex_and_skill |> filter(time == this_year, sex == this_sex) |> pull(n_employed_by_sex_and_skill)
     desired_column_sums <- employed_by_sex_and_fingreen_industry_calculated |> 
-      filter(sex == this_sex) |> 
+      filter(time == this_year, sex == this_sex) |> 
       arrange(fingreen_industry_code) |> 
       pull(n_employed)
-      
 
     n_employed_matrix_ipfp <- mipfp::Ipfp(
       seed = n_employed_matrix,
       target.list = list(1,2), # over 1=rows and 2=columns
-      target.data = list(desired_row_sums, desired_column_sums)
+      target.data = list(desired_row_sums, desired_column_sums),
+      tol.margins = 1e-7
     )
 
     employed_demographics_corrected <- bind_cols(
-      select(employed_demographics_initial, skill_level),
+      select(employed_demographics_initial, time, skill_level),
       as.data.frame(n_employed_matrix_ipfp$x.hat)
     ) |> 
       mutate(sex = this_sex) |> 
@@ -461,10 +406,17 @@ create_inputs_economy_labour_demographics <- function(
     return(employed_demographics_corrected)
   }
 
-  employed_demographics_corrected <- lapply(
-    c("female", "male"),
-    FUN = correct_employed_demographics_for_sex,
-    employed_by_sex_and_fingreen_industry_and_skill = employed_by_sex_and_fingreen_industry_and_skill
+  years_in_data <- employed_by_sex_and_fingreen_industry_and_skill |> pull(time) |> unique()
+
+  # Loop over years and sexes to do RAS-adjustment for each, and then combine the results
+  employed_demographics_corrected <- mapply(
+    FUN = correct_employed_demographics_for_year_and_sex,
+    this_year = rep(years_in_data, each = 2),
+    this_sex = rep(c("female", "male"), times = length(years_in_data)),
+    MoreArgs = list(
+      employed_by_sex_and_fingreen_industry_and_skill = employed_by_sex_and_fingreen_industry_and_skill
+    ),
+    SIMPLIFY = FALSE # just to have mapply output a list of dfs for bind rows
   ) |> 
     bind_rows()
 
@@ -473,38 +425,72 @@ create_inputs_economy_labour_demographics <- function(
 
   # results ----------------------------------------------------------------
 
-  res_employed_by_industry <- employed_by_sex_and_fingreen_industry_calculated |> 
-    group_by(fingreen_industry_code) |> 
-    summarise(n_employed = sum(n_employed)) |> 
+  res_employed_by_industry <- employed_by_fingreen_industry |> 
+    filter(time == base_year) |> 
+    select(fingreen_industry_code, n_employed) |> 
     tidyr::pivot_wider(names_from = fingreen_industry_code, values_from = n_employed)
+  
+  res_g_employed_by_industry_calib <- employed_by_fingreen_industry |> 
+    group_by(fingreen_industry_code) |> 
+    arrange(time) |> 
+    mutate(
+      g_employed = (n_employed - lag(n_employed)) / lag(n_employed)
+    ) |> 
+    ungroup() |> 
+    filter(between(time, base_year, current_year - 2L)) |>
+    select(time, fingreen_industry_code, g_employed) |>
+    tidyr::pivot_wider(names_from = time, values_from = g_employed)
 
-  res_skill_share_by_industry <- employed_demographics_corrected_long |> 
-    group_by(fingreen_industry_code, skill_level) |> 
+  skill_share_by_industry_pre <- employed_demographics_corrected_long |> 
+    group_by(time, fingreen_industry_code, skill_level) |> 
     summarise(n_employed = sum(n_employed), .groups = "drop_last") |> 
     mutate(skill_share = n_employed / sum(n_employed)) |> 
-    ungroup() |> 
-    select(-n_employed) |> 
-    tidyr::pivot_wider(names_from = fingreen_industry_code, values_from = skill_share)
+    ungroup()
 
-  res_male_share_by_industry_and_skill <- employed_demographics_corrected_long |> 
-    group_by(fingreen_industry_code, skill_level) |> 
-    summarise(male_share = sum(if_else(sex == "male", n_employed, 0)) / sum(n_employed), .groups = "drop") |> 
+  # This one for the model
+  res_skill_share_by_industry <- skill_share_by_industry_pre |>
+    filter(time == base_year) |> 
+    select(-n_employed, -time) |> 
+    tidyr::pivot_wider(names_from = fingreen_industry_code, values_from = skill_share)
+  
+  # This one for calibration for the skill demand minimodel
+  res_skill_share_by_industry_calib <- skill_share_by_industry_pre |> 
+    select(-n_employed) |> 
+    tidyr::pivot_wider(names_from = time, values_from = skill_share) |> 
+    arrange(skill_level, fingreen_industry_code) |> 
+    relocate(skill_level, fingreen_industry_code)
+
+  male_share_by_industry_pre <- employed_demographics_corrected_long |> 
+    group_by(time, fingreen_industry_code, skill_level) |> 
+    summarise(male_share = sum(if_else(sex == "male", n_employed, 0)) / sum(n_employed), .groups = "drop")
+
+  # This one for the model
+  res_male_share_by_industry_and_skill <- male_share_by_industry_pre |> 
+    filter(time == base_year) |> 
+    select(-time) |> 
     tidyr::pivot_wider(names_from = fingreen_industry_code, values_from = male_share)
+  
+  res_male_share_by_industry_and_skill_calib <- male_share_by_industry_pre |> 
+    tidyr::pivot_wider(names_from = time, values_from = male_share) |> 
+    arrange(skill_level, fingreen_industry_code) |> 
+    relocate(skill_level, fingreen_industry_code)
+
+  # This one for calibration
 
   result_path_from_filename <- function(filename){
     res <- paste0(results_dir, filename, ".ods")
   }
 
   readODS::write_ods(
-    x = res_employed_by_industry,
+    x = mget(c("res_employed_by_industry", "res_g_employed_by_industry_calib")),
     path = result_path_from_filename("n-employed-by-industry")
   )
   readODS::write_ods(
-    x = res_skill_share_by_industry,
+    x = mget(c("res_skill_share_by_industry", "res_skill_share_by_industry_calib")),
     path = result_path_from_filename("skill-share-by-industry")
   )
   readODS::write_ods(
-    x = res_male_share_by_industry_and_skill,
+    x = mget(c("res_male_share_by_industry_and_skill", "res_male_share_by_industry_and_skill_calib")),
     path = result_path_from_filename("male-share-by-industry-and-skill")
   )
 

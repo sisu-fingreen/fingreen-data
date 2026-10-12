@@ -7,7 +7,7 @@ The repo should be self-contained - meaning everything needed to create a datase
 
 The country and year for which data should be created can be set in `global-params.yml`. Use the two-letter country code used by eurostat.
 
-Changing to another country than Finland (FI) will result in an error from those few pipelines where we rely on Statistics Finland. In `wage-distribution` and `inputs-economy-labour-wages` we also rely on statistics calculated from Finnish microdata. Similar statistics could be calculated for other countries from national microdata sources.
+Changing to another country than Finland (FI) will result in an error from those few pipelines where we rely on Statistics Finland. In `wage-distribution-and-timeseries` and `inputs-economy-labour-wages` we also rely on statistics calculated from Finnish microdata. Similar statistics could be calculated for other countries from national microdata sources.
 
 ## Data pipelines
 
@@ -29,7 +29,7 @@ The `pull-raw` -functions can be stored in the same file as the `create` -functi
 
 Additionally there are some `source-data` -files, most importantly mappings between different industry categorizations. There are slight differences for nace even within Eurostat, so there are multiple mapping tables. One should be able to change the mappings and create data for a different categorization, although one should carefully review the results.
 
-The `wage-distribution` -function also creates one dataset to `results/intermediate`, which is then used later in the pipeline.
+The `wage-distribution-and-timeseries` -function also creates one dataset to `results/intermediate`, which is then used later in the pipeline.
 
 ## Naming conventions
 

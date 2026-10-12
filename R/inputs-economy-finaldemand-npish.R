@@ -55,7 +55,7 @@ create_inputs_economy_finaldemand_npish <- function(raw_data_path, global_params
       values = sum(values * coalesce(disaggregation_coefficient, 1), na.rm = TRUE),
       .groups = "drop"
     ) |> 
-    mutate(values = convert_eur_value_between_years(x = values, from  = year, to = 2010L)) |> 
+    mutate(values = convert_eur_value_between_years(x = values, from  = year, to = 2010L, geo = global_params$geo)) |> 
     tidyr::pivot_wider(names_from = ind_use, values_from = values) |> 
     rename(
       fd_gov = P3_S13,

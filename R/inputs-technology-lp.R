@@ -84,6 +84,11 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
 
   geo <- global_params$geo
   base_year <- global_params$base_year
+  
+  current_year <- Sys.Date() |> format.Date(format = "%Y") |> as.integer()
+  if(base_year > current_year - 2L){
+    stop("Cannot have newer base year than current year - 2")
+  }
 
   # directory setup ---------------------------------------------------------
 
@@ -239,7 +244,7 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
   )
 
   all_labour_productivity_changes_2010eur <- all_labour_productivity_changes %>% 
-    mutate(across(all_of(eur_variables), .fns = ~ convert_eur_value_between_years(.x, 2020L, base_year)))
+    mutate(across(all_of(eur_variables), .fns = ~ convert_eur_value_between_years(.x, 2020L, base_year, geo = geo)))
 
   # results -----------------------------------------------------------------
 
@@ -260,10 +265,44 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
       q95 = quantile(arcsinh_psi_lambda, 0.95)
     ) |> 
     select(q05, q95)
+  
+  lp_for_calibration <- labour_productivity |> 
+    filter(between(year, base_year, current_year - 2L)) |> 
+    mutate(
+      labour_productivity_output_eur_per_hour = convert_eur_value_between_years(
+        x = labour_productivity_output_eur_per_hour,
+        from = 2020L, # The raw data is chain linked volumes, 2020
+        to = base_year,
+        geo = geo
+      )
+    ) |> 
+    arrange(fingreen_industry_code) |> 
+    select(fingreen_industry_code, year, labour_productivity_output_eur_per_hour) |> 
+    tidyr::pivot_wider(names_from = year, values_from = labour_productivity_output_eur_per_hour)
+  
+  lp_g_total_for_calibration <- labour_productivity |> 
+    group_by(year) |> 
+    summarise(
+      labour_productivity_total = sum(gross_output_eur) / sum(hours_worked),
+      .groups = "drop"
+    ) |>
+    arrange(year) |> 
+    mutate(
+      g_labour_productivity = (labour_productivity_total - lag(labour_productivity_total)) / lag(labour_productivity_total)
+    ) |> 
+    filter(between(year, base_year, current_year - 2L)) |> 
+    select(year, g_labour_productivity) |> 
+    tidyr::pivot_wider(names_from = year, values_from = g_labour_productivity)
+
+  lp_g_for_calibration <- labour_productivity |> 
+    filter(between(year, base_year, current_year - 2L)) |> 
+    arrange(fingreen_industry_code) |> 
+    select(fingreen_industry_code, year, g_labour_productivity) |> 
+    tidyr::pivot_wider(names_from = year, values_from = g_labour_productivity)
 
   # export -------------------------------------------------------------------
   
-  datasets_to_write <- c("lp_norm", "lp_change_limits")
+  datasets_to_write <- c("lp_norm", "lp_change_limits", "lp_for_calibration", "lp_g_for_calibration", "lp_g_total_for_calibration")
 
   output_path <- paste0(results_dir, "lp.ods")
 

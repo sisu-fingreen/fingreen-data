@@ -88,7 +88,7 @@ io_transform_use <- io_transform_ava %>%
 # inflation correction ----------------------------------------------------
 
 io_inflation_corrected <- io_transform_use %>% 
-  mutate(values = convert_eur_value_between_years(values, from = time, to = 2010L))
+  mutate(values = convert_eur_value_between_years(values, from = time, to = 2010L, geo = "FI"))
 
 # add total growth --------------------------------------------------------
 

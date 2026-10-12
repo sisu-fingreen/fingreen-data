@@ -254,57 +254,42 @@ fingreen_industry_code_to_abbreviation <- function(codes){
 
 # misc --------------------------------------------------------------------
 
-convert_eur_value_between_years <- function(x, from, to){
+convert_eur_value_between_years <- function(x, from, to, geo){
   stopifnot(is.numeric(x))
   stopifnot(is.numeric(from))
   stopifnot(is.numeric(to))
+  stopifnot(length(geo) == 1)
   
   # If no need to convert, just return the original value and avoid api calls
   if(all(from == to)){
     return(x)
   }
   
-  year_pairs <- tibble(from, to) |> distinct() |> filter(from != to)
-  year_pairs_list <- split(x = year_pairs, f = year_pairs)
-  
-  get_conversion_factor_for_year_pair <- function(year_pair) {
-    
-    # Statfin has a handy api for money (eur) value conversion between years
-    conversion_factor_query <- pxweb::pxweb_query(
-      list(timeperiod_y = as.character(year_pair), contentscode = "khi-pisteluku")
-    )
-    
-    conversion_factor <- pxweb::pxweb_get(
-      url = "https://pxdata.stat.fi/PxWeb/api/v1/fi/StatFin/khi/11xy.px",
-      query = conversion_factor_query
-    ) |> as.data.frame() |> 
-      fix_names() |> 
-      arrange(vuosi) |> 
-      summarise(conversion_factor = first(pisteluku) / last(pisteluku)) |> 
-      pull(conversion_factor)
-    
-    res <- if_else(year_pair$from >= year_pair$to, conversion_factor, 1 / conversion_factor)
-    
-    # This limits the rate a bit, otherwise the statfin API gets mad.
-    Sys.sleep(3.1) 
-
-    return(res)
-  }
-  
-  conversion_factors <- lapply(year_pairs_list, get_conversion_factor_for_year_pair) |> unlist()
-  
-  conversion_df <- bind_rows(year_pairs_list) |> cbind(conversion_factors)
-  
-  res_df <- tibble(x, from, to) |> 
-    left_join(conversion_df, by = c("from", "to")) |> 
-    mutate(
-      res = case_when(
-        from == to ~ x,
-        from != to ~ x * conversion_factors
+  years <- unique(c(from, to))
+  hicp_values <- eurostat::get_eurostat(
+      id = "prc_hicp_ainr",
+      time_format = "num",
+      filters = list(
+        geo = geo,
+        time = years,
+        unit = "INX_A_AVG",
+        freq = "A",
+        coicop18 = "TOTAL"
       )
-    )
+    ) |> 
+    select(time, hicp = values)
   
-  return(res_df$res)
+  conversion_df <- tibble(x, from, to) |> 
+    left_join(rename(hicp_values, hicp_from = hicp), by = c("from" = "time")) |> 
+    left_join(rename(hicp_values, hicp_to = hicp), by = c("to" = "time")) |> 
+    mutate(converted = x * hicp_to / hicp_from)
+
+  res <- conversion_df$converted
+
+  # limit the rate a bit
+  Sys.sleep(0.1)
+
+  return(res)
 }
 
 convert_data_from_euklems_to_fingreen_industry <- function(
