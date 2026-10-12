@@ -13,7 +13,7 @@ pull_raw_data_inputs_economy_labour_demographics  <- function(
   if(base_year > current_year - 2L) {
     stop("Cannot create data newer than current year - 2")
   }
-  years <- base_year:(current_year - 2L)
+  years <- (base_year - 1L):(current_year - 2L)
 
   working_directory <- getwd()
 
@@ -166,6 +166,8 @@ create_inputs_economy_labour_demographics <- function(
 
   geo <- global_params$geo
   base_year <- global_params$base_year |> as.integer()
+
+  current_year <- Sys.Date() |> format.Date(format = "%Y") |> as.integer()
 
   # employed by sex and industry -------------------------------------------
 
@@ -423,10 +425,21 @@ create_inputs_economy_labour_demographics <- function(
 
   # results ----------------------------------------------------------------
 
-  res_employed_by_industry <- employed_by_sex_and_fingreen_industry_calculated |> 
-    group_by(time, fingreen_industry_code) |> 
-    summarise(n_employed = sum(n_employed), .groups = "drop") |> 
+  res_employed_by_industry <- employed_by_fingreen_industry |> 
+    filter(time == base_year) |> 
+    select(fingreen_industry_code, n_employed) |> 
     tidyr::pivot_wider(names_from = fingreen_industry_code, values_from = n_employed)
+  
+  res_g_employed_by_industry_calib <- employed_by_fingreen_industry |> 
+    group_by(fingreen_industry_code) |> 
+    arrange(time) |> 
+    mutate(
+      g_employed = (n_employed - lag(n_employed)) / lag(n_employed)
+    ) |> 
+    ungroup() |> 
+    filter(between(time, base_year, current_year - 2L)) |>
+    select(time, fingreen_industry_code, g_employed) |>
+    tidyr::pivot_wider(names_from = time, values_from = g_employed)
 
   skill_share_by_industry_pre <- employed_demographics_corrected_long |> 
     group_by(time, fingreen_industry_code, skill_level) |> 
@@ -437,15 +450,15 @@ create_inputs_economy_labour_demographics <- function(
   # This one for the model
   res_skill_share_by_industry <- skill_share_by_industry_pre |>
     filter(time == base_year) |> 
-    select(-n_employed) |> 
+    select(-n_employed, -time) |> 
     tidyr::pivot_wider(names_from = fingreen_industry_code, values_from = skill_share)
   
   # This one for calibration for the skill demand minimodel
   res_skill_share_by_industry_calib <- skill_share_by_industry_pre |> 
     select(-n_employed) |> 
     tidyr::pivot_wider(names_from = time, values_from = skill_share) |> 
-    arrange(fingreen_industry_code, skill_level) |> 
-    relocate(fingreen_industry_code, skill_level)
+    arrange(skill_level, fingreen_industry_code) |> 
+    relocate(skill_level, fingreen_industry_code)
 
   male_share_by_industry_pre <- employed_demographics_corrected_long |> 
     group_by(time, fingreen_industry_code, skill_level) |> 
@@ -454,12 +467,13 @@ create_inputs_economy_labour_demographics <- function(
   # This one for the model
   res_male_share_by_industry_and_skill <- male_share_by_industry_pre |> 
     filter(time == base_year) |> 
+    select(-time) |> 
     tidyr::pivot_wider(names_from = fingreen_industry_code, values_from = male_share)
   
   res_male_share_by_industry_and_skill_calib <- male_share_by_industry_pre |> 
     tidyr::pivot_wider(names_from = time, values_from = male_share) |> 
-    arrange(fingreen_industry_code, skill_level) |> 
-    relocate(fingreen_industry_code, skill_level)
+    arrange(skill_level, fingreen_industry_code) |> 
+    relocate(skill_level, fingreen_industry_code)
 
   # This one for calibration
 
@@ -468,7 +482,7 @@ create_inputs_economy_labour_demographics <- function(
   }
 
   readODS::write_ods(
-    x = res_employed_by_industry,
+    x = mget(c("res_employed_by_industry", "res_g_employed_by_industry_calib")),
     path = result_path_from_filename("n-employed-by-industry")
   )
   readODS::write_ods(

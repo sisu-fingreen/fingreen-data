@@ -68,7 +68,7 @@ create_inputs_technology_trends <- function(raw_data_path, global_params) {
   # inflation correction ----------------------------------------------------
 
   io_inflation_corrected <- io_transform_use %>% 
-    mutate(values = convert_eur_value_between_years(values, from = time, to = 2010L, geo = geo))
+    mutate(values = convert_eur_value_between_years(values, from = time, to = 2010L, geo = global_params$geo))
 
   # FD import shares ---------------------------------------------------------
 

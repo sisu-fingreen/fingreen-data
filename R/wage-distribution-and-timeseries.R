@@ -1,4 +1,4 @@
-create_wage_distribution <- function(wage_microdata_path, global_params) {
+create_wage_distribution_and_timeseries <- function(wage_microdata_path, global_params) {
   
   source("R/fingreen-r-utils.R")
   library(dplyr)
@@ -20,17 +20,13 @@ create_wage_distribution <- function(wage_microdata_path, global_params) {
     mutate(
       sex = factor(sex, levels = c("F", "M")),
       skill_adjusted = factor(skill_adjusted, levels = c("low", "mid", "high"))
-    )
+    ) |> 
+    filter(!is.na(year)) |> 
+    tidyr::pivot_longer(cols = c("avg_wage", "sd_wage", "coef_disp"), names_to = "measure")
 
   # A3 industry has data only for 2012, so we use that to impute for the base_year
   wage_microdata_a3_imputation_mid_high <- wage_microdata |> 
-    filter(year == 2012 & code == "A3") |> 
-    mutate(
-      year = base_year,
-      avg_wage = convert_eur_value_between_years(avg_wage, 2012, base_year),
-      sd_wage = convert_eur_value_between_years(sd_wage, 2012, base_year),
-      coef_disp = convert_eur_value_between_years(coef_disp, 2012, base_year)
-    )
+    filter(year == 2012 & code == "A3")
   # Also for A3, replicate mid skill stats to low skilled, but set n 0 as to not bias
   # average calculations
   wage_microdata_a3_imputation_low <- wage_microdata_a3_imputation_mid_high |> 
@@ -40,13 +36,42 @@ create_wage_distribution <- function(wage_microdata_path, global_params) {
       skill_adjusted = factor("low", levels = c("low", "mid", "high"))
     )
   
-  wage_microdata_imputed <- wage_microdata |> 
-    bind_rows(wage_microdata_a3_imputation_mid_high, wage_microdata_a3_imputation_low) |> 
-    arrange(sex, skill_adjusted, code)
+  wage_microdata_a3_imputed <- bind_rows(wage_microdata_a3_imputation_mid_high, wage_microdata_a3_imputation_low) |> 
+    select(-year) |> 
+    cross_join(distinct(wage_microdata, year)) |> 
+    mutate(
+      value = convert_eur_value_between_years(value, 2012, year, geo = geo)
+    )
 
-  # validate that we have the data for the base year
+  
+  wage_microdata_imputed <- wage_microdata |> 
+    filter(code != "A3") |> 
+    bind_rows(wage_microdata_a3_imputed) |>
+    # Some observations are completely missing so create those
+    tidyr::complete(sex, skill_adjusted, code, year, measure) |> 
+    # Fill missing values forward, luckily we don't have other missing than A3 for 2010,
+    # which is already taken care of
+    group_by(sex, skill_adjusted, code, measure) |> 
+    arrange(year) |> 
+    mutate(
+      filled_value = value,
+      fill_year = if_else(is.na(value), NA, year)
+    ) |> 
+    tidyr::fill(filled_value, fill_year) |> 
+    ungroup() |> 
+    mutate(
+      value = coalesce(
+        value,
+        convert_eur_value_between_years(filled_value, fill_year, year, geo = geo),
+      )
+    ) |> 
+    arrange(sex, skill_adjusted, code, measure, year)
+
   wage_microdata_base_year_imputed <- wage_microdata_imputed |>
-    filter(year == base_year & !is.na(avg_wage))
+    filter(year == base_year) |> 
+    select(-filled_value, -fill_year) |> 
+    tidyr::pivot_wider(names_from = measure, values_from = value)
+
   if(nrow(wage_microdata_base_year_imputed) != 39*3*2){
     stop(
       "Some industry, skill or sex is missing data. ",
@@ -69,10 +94,17 @@ create_wage_distribution <- function(wage_microdata_path, global_params) {
     ) |> 
     select(-mean_wage, -avg_wage, -sd_wage, -coef_disp) |> 
     rename(fingreen_industry_code = code)
-    
-  datasets_to_write <- c("relative_wage_stats")
   
-  output_path <- paste0(results_dir, "wage-distribution.ods")
+  wage_timeseries <- wage_microdata_imputed |> 
+    filter(measure == "avg_wage") |> 
+    select(year, sex, code, skill_adjusted, value) |> 
+    tidyr::pivot_wider(names_from = year, values_from = value) |> 
+    arrange(sex, skill_adjusted, code) |> 
+    relocate(sex, skill_adjusted, code)
+    
+  datasets_to_write <- c("relative_wage_stats", "wage_timeseries")
+  
+  output_path <- paste0(results_dir, "wage-distribution-and-timeseries.ods")
   
   # write all in one go
   readODS::write_ods(x = mget(datasets_to_write), path = output_path)

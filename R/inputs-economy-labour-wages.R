@@ -272,13 +272,19 @@ create_inputs_economy_labour_wages <- function(
     # why use the ratio and not the share_unemployed directly? Well, think if share unemployed were eg. 0.9
     mutate(n_unemployed = n_employed * share_unemployed / (1 - share_unemployed)) |> 
     summarise(avg_annual_wage_uw = weighted.mean(avg_annual_wage, w = n_unemployed))
+  
+  raw_wage_timeseries_for_calib <- readODS::read_ods(
+    path = wage_distribution_data_path,
+    sheet = "wage_timeseries"
+  ) 
 
   # output results ---------------------------------------------------------
 
   datasets_to_write <- c(
     "res_hourly_wages",
     "res_coefficient_wage_dispersion",
-    "avg_annual_wage_weighed_by_u_by_sex_and_skill"
+    "avg_annual_wage_weighed_by_u_by_sex_and_skill",
+    "raw_wage_timeseries_for_calib"
   )
   
   output_path <- paste0(results_dir, "wages.ods")

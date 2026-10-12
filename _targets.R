@@ -62,7 +62,7 @@ tar_source(
     "R/inputs-economy-investments-depreciation.R",
     "R/inputs-economy-labour-demographics.R",
     "R/inputs-economy-labour-hours.R",
-    "R/wage-distribution.R",
+    "R/wage-distribution-and-timeseries.R",
     "R/inputs-economy-labour-wages.R",
     "R/pull-raw-data-inputs-economy-inputoutput.R",
     "R/inputs-economy-finaldemand-npish.R",
@@ -212,7 +212,7 @@ list(
   ),
   tar_target(
     name = wage_distribution,
-    command = create_wage_distribution(
+    command = create_wage_distribution_and_timeseries(
       wage_microdata_path = "source-data/microdata/wages-by-Skill-adjusted-2010_2022-(KUN-VAL-YKS).xlsx",
       global_params = global_params
     ),

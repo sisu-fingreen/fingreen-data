@@ -101,10 +101,17 @@ create_inputs_economy_demography_skills <- function(raw_data_path, global_params
     mutate(`0-14` = 0) |>
     relocate(`0-14`, .after = skill_level)
 
-  res_calibration_timeseries <- skill_share_by_gender_age |> 
+  res_calibration_timeseries_n <- skill_share_by_gender_age |> 
     select(-pct) |> 
     filter(gender != "total" & age_class != "0-14") |> 
     tidyr::pivot_wider(names_from = year, values_from = n) |> 
+    arrange(age_class, gender, skill_level) |> 
+    relocate(age_class, gender, skill_level)
+
+  res_calibration_timeseries_pct <- skill_share_by_gender_age |> 
+    select(-n) |> 
+    filter(gender != "total" & age_class != "0-14") |> 
+    tidyr::pivot_wider(names_from = year, values_from = pct) |> 
     arrange(age_class, gender, skill_level) |> 
     relocate(age_class, gender, skill_level)
 
@@ -114,7 +121,8 @@ create_inputs_economy_demography_skills <- function(raw_data_path, global_params
   
   datasets_to_write <- c(
     "res_base_year",
-    "res_calibration_timeseries"
+    "res_calibration_timeseries_n",
+    "res_calibration_timeseries_pct"
   )
 
   readODS::write_ods(

@@ -258,6 +258,7 @@ convert_eur_value_between_years <- function(x, from, to, geo){
   stopifnot(is.numeric(x))
   stopifnot(is.numeric(from))
   stopifnot(is.numeric(to))
+  stopifnot(length(geo) == 1)
   
   # If no need to convert, just return the original value and avoid api calls
   if(all(from == to)){
