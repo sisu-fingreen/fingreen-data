@@ -114,6 +114,12 @@ validate_schema <- function(df, expected_schema, df_name) {
   }
 }
 
+get_current_year <- function() {
+
+  res <- Sys.Date() |> format.Date(format = "%Y") |> as.integer()
+  return(res)
+}
+
 # plotting -----------------------------------------------------------------
 
 save_plotly_plot <- function(plot, file, ...){
