@@ -1,4 +1,4 @@
-pull_raw_data_inputs_economy_inputouput <- function(global_params, end_year = 2022L) {
+pull_raw_data_inputs_economy_inputoutput <- function(global_params, end_year = 2022L) {
   
   source("R/fingreen-r-utils.R")
   library(dplyr)

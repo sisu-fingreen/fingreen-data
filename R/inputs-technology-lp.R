@@ -1,25 +1,25 @@
-pull_raw_data_inputs_technology_lp <- function(global_params, start_year = 1995L, clv_year = 2015) {
+pull_raw_data_inputs_technology_lp <- function(global_params, start_year = 1995L) {
   
   source("R/fingreen-r-utils.R")
   library(dplyr)
 
   base_year <- global_params$base_year
   geo <- global_params$geo
+  clv_year <- global_params$clv_year
 
   working_directory <- getwd()
 
   raw_data_dir <- paste0(working_directory, "/raw-data/inputs-technology/")
   create_dir_if_not_exists(raw_data_dir, "raw data")
   
-  # we will read the data in chain linked volume series,
-  # so read the closest preceding one to the base year.
-  # In eurostat they are available every 5 years
-  # best_clv_year <- base_year - (base_year %% 5L)
-  # if(!best_clv_year %in% c(2005L, 2010L, 2020L)) {
-  #   stop("Base year is too far from 2005-2020, which is the range of eurostat chain linked volume series")
-  # }
-  
+  # the tables are in clv, inflation corrected chain linked volumes
   clv_unit <- paste0("CLV", substr(clv_year, 3, 4), "_MEUR")
+  # There is some missing data so use national currency for Finland for now (it is euros anyway) but fix this later
+  if(geo == "FI"){
+    clv_unit_capital_stock <- paste0("CLV", substr(clv_year, 3, 4), "_MNAC")
+  } else{
+    clv_unit_capital_stock <- clv_unit
+  }
 
   gfcf_by_industry <- eurostat::get_eurostat(
     "nama_10_a64_p5",
@@ -38,7 +38,8 @@ pull_raw_data_inputs_technology_lp <- function(global_params, start_year = 1995L
     time_format = "num",
     filters = list(
       geo = geo,
-      unit = clv_unit,
+      # There is some missing data so use national currency for Finland for now (it is euros anyway) but fix this later
+      unit = clv_unit_capital_stock,
       asset10 = "N11N" # Net capital stock
     )
   ) %>%
@@ -94,9 +95,7 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
 
   geo <- global_params$geo
   base_year <- global_params$base_year
-  
-  # In the raw data we pulled, this will be the base year of the eur values
-  clv_year <- base_year - (base_year %% 5L)
+  clv_year <- global_params$clv_year
   
   current_year <- Sys.Date() |> format.Date(format = "%Y") |> as.integer()
   if(base_year > current_year - 2L){
