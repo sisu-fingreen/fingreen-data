@@ -250,7 +250,7 @@ list(
   ),
   tar_target(
     name = raw_data_inputs_economy_inputoutput,
-    command = pull_raw_data_inputs_economy_inputouput(global_params = global_params, end_year = 2022L),
+    command = pull_raw_data_inputs_economy_inputoutput(global_params = global_params, end_year = 2023L),
     format = "file"
   ),
   tar_target(
