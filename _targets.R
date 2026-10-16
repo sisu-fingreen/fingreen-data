@@ -71,7 +71,8 @@ tar_source(
     "R/inputs-economy-labour-male-share-trends.R",
     "R/inputs-technology-lp.R",
     "R/inputs-technology-trends.R",
-    "R/inputs-technology-u.R"
+    "R/inputs-technology-u.R",
+    "R/partial-model-data.R"
   )
 )
 
@@ -314,6 +315,16 @@ list(
       global_params = global_params,
       raw_data_path = raw_data_inputs_economy_inputoutput,
       na_data_path = raw_data_inputs_technology_lp
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = partial_model_data_investment,
+    command = create_partial_model_data_investment(
+      global_params = global_params,
+      io_raw_data_path = raw_data_inputs_economy_inputoutput,
+      lp_raw_data_path = raw_data_inputs_technology_lp,
+      depreciation_data_path = inputs_economy_investments_depreciation
     ),
     format = "file"
   )
