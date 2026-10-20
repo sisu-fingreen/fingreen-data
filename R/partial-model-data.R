@@ -100,7 +100,6 @@ create_partial_model_data_investment <- function(
     transform_industry() |> 
     rename(gfcf_meur = values)
 
-  # export -------------------------------------------------------------------
   
   res_total_output <- total_output_base_year_eur |> 
     select(-values) |> 
