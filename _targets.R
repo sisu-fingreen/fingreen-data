@@ -60,6 +60,7 @@ tar_source(
     "R/inputs-economy-finance-wealth.R",
     "R/inputs-economy-government-investment.R",
     "R/inputs-economy-investments-depreciation.R",
+    "R/inputs-economy-investments-matrix.R",
     "R/inputs-economy-labour-demographics.R",
     "R/inputs-economy-labour-hours.R",
     "R/wage-distribution-and-timeseries.R",
@@ -176,6 +177,22 @@ list(
   tar_target(
     name = inputs_economy_investments_depreciation,
     command = create_inputs_economy_investments_depreciation(
+      global_params = global_params
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = raw_data_inputs_economy_investments_matrix,
+    command = pull_raw_data_inputs_economy_investments_matrix(
+      global_params = global_params
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = inputs_economy_investments_matrix,
+    command = create_inputs_economy_investments_matrix(
+      raw_data_path = raw_data_inputs_economy_investments_matrix,
+      io_raw_data_path = raw_data_inputs_economy_inputoutput,
       global_params = global_params
     ),
     format = "file"
