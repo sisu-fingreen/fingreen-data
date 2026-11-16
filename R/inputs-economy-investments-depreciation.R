@@ -17,10 +17,10 @@ create_inputs_economy_investments_depreciation <- function(global_params) {
 
   working_directory <- getwd()
 
-  graphs_dir <- paste0(working_directory, "/graphs/inputs-economy/investment/")
+  graphs_dir <- paste0(working_directory, "/graphs/inputs-economy/investments/")
   create_dir_if_not_exists(graphs_dir, "graphs")
 
-  results_dir <- paste0(working_directory, "/results/inputs-economy/investment/")
+  results_dir <- paste0(working_directory, "/results/inputs-economy/investments/")
   create_dir_if_not_exists(results_dir, "results")
 
   # functions --------------------------------------------------------------
