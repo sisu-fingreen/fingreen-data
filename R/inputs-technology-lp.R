@@ -5,18 +5,28 @@ pull_raw_data_inputs_technology_lp <- function(global_params, start_year = 1995L
 
   base_year <- global_params$base_year
   geo <- global_params$geo
+  clv_year <- global_params$clv_year
 
   working_directory <- getwd()
 
   raw_data_dir <- paste0(working_directory, "/raw-data/inputs-technology/")
   create_dir_if_not_exists(raw_data_dir, "raw data")
   
+  # the tables are in clv, inflation corrected chain linked volumes
+  clv_unit <- paste0("CLV", substr(clv_year, 3, 4), "_MEUR")
+  # There is some missing data so use national currency for Finland for now (it is euros anyway) but fix this later
+  if(geo == "FI"){
+    clv_unit_capital_stock <- paste0("CLV", substr(clv_year, 3, 4), "_MNAC")
+  } else{
+    clv_unit_capital_stock <- clv_unit
+  }
+
   gfcf_by_industry <- eurostat::get_eurostat(
     "nama_10_a64_p5",
     time_format = "num",
     filters = list(
       geo = geo,
-      unit = "CLV20_MEUR", # chain linked values, 2020 meur
+      unit = clv_unit,
       asset10 = "N11G", # Total fixed assets (gross)
       na_item = "P51G" # gfcf
     )
@@ -28,7 +38,8 @@ pull_raw_data_inputs_technology_lp <- function(global_params, start_year = 1995L
     time_format = "num",
     filters = list(
       geo = geo,
-      unit = "CLV20_MEUR", # Chain linked values, 2020 meur
+      # There is some missing data so use national currency for Finland for now (it is euros anyway) but fix this later
+      unit = clv_unit_capital_stock,
       asset10 = "N11N" # Net capital stock
     )
   ) %>%
@@ -39,7 +50,7 @@ pull_raw_data_inputs_technology_lp <- function(global_params, start_year = 1995L
     time_format = "num",
     filters = list(
       geo = geo,
-      unit = "CLV20_MEUR", # Chain linked values, 2020 meur
+      unit = clv_unit,
       na_item = "P1" # Gross output
     )
   ) %>%
@@ -84,6 +95,7 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
 
   geo <- global_params$geo
   base_year <- global_params$base_year
+  clv_year <- global_params$clv_year
   
   current_year <- Sys.Date() |> format.Date(format = "%Y") |> as.integer()
   if(base_year > current_year - 2L){
@@ -243,14 +255,16 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
     "gfcf_meur"
   )
 
-  all_labour_productivity_changes_2010eur <- all_labour_productivity_changes %>% 
-    mutate(across(all_of(eur_variables), .fns = ~ convert_eur_value_between_years(.x, 2020L, base_year, geo = geo)))
+  # It is known that cpi adjustment for inflation is less accurate than clv, but
+  # since we picked a close clv year earlier, the adjustment will be small
+  all_labour_productivity_changes_base_year_eur <- all_labour_productivity_changes %>% 
+    mutate(across(all_of(eur_variables), .fns = ~ convert_eur_value_between_years(.x, clv_year, base_year, geo = global_params$geo)))
 
   # results -----------------------------------------------------------------
 
   # Extract the distribution statistics from the data and export to excel
 
-  lp_norm <- all_labour_productivity_changes_2010eur %>% 
+  lp_norm <- all_labour_productivity_changes_base_year_eur %>% 
     group_by(fingreen_industry_code) %>% 
     summarise(
       mean = mean(arcsinh_psi_lambda),
@@ -259,7 +273,7 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
     ) %>%
     data.table::transpose(keep.names = "measure", make.names = "fingreen_industry_code")
 
-  lp_change_limits <- all_labour_productivity_changes_2010eur |> 
+  lp_change_limits <- all_labour_productivity_changes_base_year_eur |> 
     summarise(
       q05 = quantile(arcsinh_psi_lambda, 0.05),
       q95 = quantile(arcsinh_psi_lambda, 0.95)
@@ -271,7 +285,7 @@ create_inputs_technology_lp <- function(raw_data_path, global_params) {
     mutate(
       labour_productivity_output_eur_per_hour = convert_eur_value_between_years(
         x = labour_productivity_output_eur_per_hour,
-        from = 2020L, # The raw data is chain linked volumes, 2020
+        from = clv_year, # The raw data is chain linked volumes, year is defined earlier
         to = base_year,
         geo = geo
       )
