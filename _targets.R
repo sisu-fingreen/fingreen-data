@@ -72,7 +72,8 @@ tar_source(
     "R/inputs-technology-lp.R",
     "R/inputs-technology-trends.R",
     "R/inputs-technology-u.R",
-    "R/partial-model-data.R"
+    "R/partial-model-data.R",
+    "R/full-model-calib-data.R"
   )
 )
 
@@ -325,6 +326,22 @@ list(
       io_raw_data_path = raw_data_inputs_economy_inputoutput,
       lp_raw_data_path = raw_data_inputs_technology_lp,
       depreciation_data_path = inputs_economy_investments_depreciation
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = raw_data_full_model_calib,
+    command = pull_raw_data_full_model_calib(
+      global_params = global_params
+    ),
+    format = "file"
+  ),
+  tar_target(
+    name = full_model_calib_data,
+    command = create_full_model_calib_data(
+      global_params = global_params,
+      raw_data_path = raw_data_full_model_calib,
+      labour_productivity_path = inputs_technology_lp
     ),
     format = "file"
   )
